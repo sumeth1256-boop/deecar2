@@ -45,6 +45,7 @@ import {
   GoogleAuthProvider,
   signOut, 
   onAuthStateChanged,
+  sendPasswordResetEmail, // 👈 ใส่เพิ่มตรงนี้ครับ
   type User
 } from 'firebase/auth';
 
@@ -651,6 +652,28 @@ function MainApp() {
     }
   };
 
+// ฟังก์ชันสำหรับส่งอีเมลรีเซ็ตรหัสผ่าน
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      alert('กรุณากรอกอีเมลของคุณในช่อง "อีเมล (Email)" ก่อนกดลืมรหัสผ่านครับ');
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+      alert(`ระบบได้ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมล:\n${email}\n\nกรุณาตรวจสอบใน Inbox หรือโฟลเดอร์ขยะ (Spam) ครับ`);
+    } catch (err: any) {
+      console.error("Reset Password Error:", err);
+      if (err.code === 'auth/user-not-found') {
+        setAuthError('ไม่พบบัญชีผู้ใช้นี้ในระบบ');
+      } else if (err.code === 'auth/invalid-email') {
+        setAuthError('รูปแบบอีเมลไม่ถูกต้อง');
+      } else {
+        setAuthError('เกิดข้อผิดพลาดในการส่งอีเมล: ' + err.message);
+      }
+    }
+  };
+
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
@@ -783,8 +806,22 @@ function MainApp() {
               </div>
             </div>
 
-            <div>
-              <label className="text-slate-400 font-semibold mb-1 block text-[11px]">รหัสผ่าน (Password)</label>
+<div>
+              <div className="flex justify-between items-center mb-1">
+                <label className="text-slate-400 font-semibold text-[11px]">รหัสผ่าน (Password)</label>
+                
+                {/* 👈 เพิ่มปุ่มลืมรหัสผ่านตรงนี้ครับ */}
+                {authMode === 'login' && (
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold transition-colors"
+                  >
+                    ลืมรหัสผ่าน?
+                  </button>
+                )}
+              </div>
+              
               <div className="relative">
                 <Lock className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-500" />
                 <input
