@@ -445,9 +445,22 @@ function MainApp() {
     }
   };
 
+  // จัดเรียงลำดับ: เกินกำหนด (overdue) ขึ้นก่อน -> ใกล้ถึง (soon) -> ปกติ (normal)
   const currentVehicleEvaluatedItems = useMemo(() => {
     if (!currentVehicle) return [];
-    return evaluateVehicleItems(currentVehicle);
+    const evaluated = evaluateVehicleItems(currentVehicle);
+    
+    const statusPriority: { [key: string]: number } = {
+      'overdue': 1,
+      'soon': 2,
+      'normal': 3
+    };
+
+    return evaluated.sort((a, b) => {
+      const pA = statusPriority[a.status || 'normal'] || 3;
+      const pB = statusPriority[b.status || 'normal'] || 3;
+      return pA - pB;
+    });
   }, [currentVehicle]);
 
   const attentionItems = useMemo(() => {
@@ -1291,15 +1304,9 @@ function MainApp() {
                       </button>
                     </div>
                   </div>
-                ) : attentionItems.length === 0 ? (
-                  <div className={`p-10 text-center rounded-2xl border ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-600'}`}>
-                    <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-                    <p className="text-sm font-bold">ยอดเยี่ยม! รถคันนี้สภาพปกติและเอกสารครบทุกรายการ</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">ยังไม่มีรายการใดที่เกินระยะหรือใกล้หมดอายุในตอนนี้</p>
-                  </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {attentionItems.map((item: MaItem) => {
+                    {currentVehicleEvaluatedItems.map((item: MaItem) => {
                       let statusBadgeBg = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
                       let statusText = 'ปกติ / ยังไม่ถึงระยะ';
                       let progressKmColor = 'bg-emerald-500';
