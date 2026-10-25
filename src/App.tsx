@@ -706,21 +706,35 @@ function MainApp() {
   };
 
   // 1. ฟังก์ชันส่งออก/สำรองข้อมูล (Export Backup)
+// 1. ฟังก์ชันส่งออก/สำรองข้อมูล (Export Backup) พร้อมแสดงเวลาแบบละเอียด
   const handleExportBackup = () => {
     if (vehicles.length === 0) {
       alert('ยังไม่มีข้อมูลยานพาหนะให้สำรองครับ');
       return;
     }
+    
+    const now = new Date();
+    // จัดรูปแบบวันที่และเวลา เช่น 2026-03-31_14-30-45
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    
+    const timeString = `${year}-${month}-${day}_${hours}-${minutes}-${seconds}`;
+
     const backupData = {
       version: '1.0',
-      exportDate: new Date().toISOString(),
+      exportDate: now.toISOString(),
       vehicles,
       serviceHistory
     };
+    
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `deecar_backup_${new Date().toISOString().split('T')[0]}.json`);
+    downloadAnchor.setAttribute("download", `deecar_backup_${timeString}.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
