@@ -45,7 +45,7 @@ import {
   GoogleAuthProvider,
   signOut, 
   onAuthStateChanged,
-  sendPasswordResetEmail, // 👈 ใส่เพิ่มตรงนี้ครับ
+  sendPasswordResetEmail,
   type User
 } from 'firebase/auth';
 
@@ -446,7 +446,6 @@ function MainApp() {
     }
   };
 
-  // จัดเรียงลำดับ: เกินกำหนด (overdue) ขึ้นก่อน -> ใกล้ถึง (soon) -> ปกติ (normal)
   const currentVehicleEvaluatedItems = useMemo(() => {
     if (!currentVehicle) return [];
     const evaluated = evaluateVehicleItems(currentVehicle);
@@ -463,10 +462,6 @@ function MainApp() {
       return pA - pB;
     });
   }, [currentVehicle]);
-
-  const attentionItems = useMemo(() => {
-    return currentVehicleEvaluatedItems.filter((item: MaItem) => item.status === 'overdue' || item.status === 'soon');
-  }, [currentVehicleEvaluatedItems]);
 
   const summary = useMemo(() => {
     const overdueCount = currentVehicleEvaluatedItems.filter((i: MaItem) => i.status === 'overdue').length;
@@ -652,28 +647,6 @@ function MainApp() {
     }
   };
 
-// ฟังก์ชันสำหรับส่งอีเมลรีเซ็ตรหัสผ่าน
-  const handleForgotPassword = async () => {
-    if (!email.trim()) {
-      alert('กรุณากรอกอีเมลของคุณในช่อง "อีเมล (Email)" ก่อนกดลืมรหัสผ่านครับ');
-      return;
-    }
-
-    try {
-      await sendPasswordResetEmail(auth, email);
-      alert(`ระบบได้ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมล:\n${email}\n\nกรุณาตรวจสอบใน Inbox หรือโฟลเดอร์ขยะ (Spam) ครับ`);
-    } catch (err: any) {
-      console.error("Reset Password Error:", err);
-      if (err.code === 'auth/user-not-found') {
-        setAuthError('ไม่พบบัญชีผู้ใช้นี้ในระบบ');
-      } else if (err.code === 'auth/invalid-email') {
-        setAuthError('รูปแบบอีเมลไม่ถูกต้อง');
-      } else {
-        setAuthError('เกิดข้อผิดพลาดในการส่งอีเมล: ' + err.message);
-      }
-    }
-  };
-
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
@@ -708,6 +681,79 @@ function MainApp() {
         setAuthError('เข้าสู่ระบบด้วย Google ไม่สำเร็จ: ' + err.message);
       }
     }
+  };
+
+  // ฟังก์ชันลืมรหัสผ่าน
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      alert('กรุณากรอกอีเมลของคุณในช่อง "อีเมล (Email)" ก่อนกดลืมรหัสผ่านครับ');
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+      alert(`ระบบได้ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมล:\n${email}\n\nกรุณาตรวจสอบใน Inbox หรือโฟลเดอร์ขยะ (Spam) ครับ`);
+    } catch (err: any) {
+      console.error("Reset Password Error:", err);
+      if (err.code === 'auth/user-not-found') {
+        setAuthError('ไม่พบบัญชีผู้ใช้นี้ในระบบ');
+      } else if (err.code === 'auth/invalid-email') {
+        setAuthError('รูปแบบอีเมลไม่ถูกต้อง');
+      } else {
+        setAuthError('เกิดข้อผิดพลาดในการส่งอีเมล: ' + err.message);
+      }
+    }
+  };
+
+  // 1. ฟังก์ชันส่งออก/สำรองข้อมูล (Export Backup)
+  const handleExportBackup = () => {
+    if (vehicles.length === 0) {
+      alert('ยังไม่มีข้อมูลยานพาหนะให้สำรองครับ');
+      return;
+    }
+    const backupData = {
+      version: '1.0',
+      exportDate: new Date().toISOString(),
+      vehicles,
+      serviceHistory
+    };
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `deecar_backup_${new Date().toISOString().split('T')[0]}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
+  // 2. ฟังก์ชันนำเข้า/นำข้อมูลกลับมา (Import Restore)
+  const handleImportBackup = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const fileReader = new FileReader();
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    fileReader.onload = (e) => {
+      try {
+        const content = JSON.parse(e.target?.result as string);
+        if (content && Array.isArray(content.vehicles)) {
+          const isConfirmed = window.confirm(
+            `พบข้อมูลสำรอง (${content.vehicles.length} คัน) ต้องการนำข้อมูลนี้มาเขียนทับข้อมูลปัจจุบันใช่หรือไม่?`
+          );
+          if (isConfirmed) {
+            setVehicles(content.vehicles);
+            setServiceHistory(content.serviceHistory || []);
+            saveToCloud(content.vehicles, content.serviceHistory || []);
+            alert('นำเข้าและฟื้นฟูข้อมูลสำรองเรียบร้อยแล้วครับ!');
+          }
+        } else {
+          alert('รูปแบบไฟล์สำรองไม่ถูกต้อง');
+        }
+      } catch (err) {
+        alert('เกิดข้อผิดพลาดในการอ่านไฟล์สำรอง');
+      }
+    };
+    fileReader.readAsText(file);
+    event.target.value = '';
   };
 
   const handleLogout = () => {
@@ -806,11 +852,9 @@ function MainApp() {
               </div>
             </div>
 
-<div>
+            <div>
               <div className="flex justify-between items-center mb-1">
                 <label className="text-slate-400 font-semibold text-[11px]">รหัสผ่าน (Password)</label>
-                
-                {/* 👈 เพิ่มปุ่มลืมรหัสผ่านตรงนี้ครับ */}
                 {authMode === 'login' && (
                   <button
                     type="button"
@@ -821,7 +865,6 @@ function MainApp() {
                   </button>
                 )}
               </div>
-              
               <div className="relative">
                 <Lock className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-500" />
                 <input
@@ -885,6 +928,30 @@ function MainApp() {
             <span className="text-[11px] text-slate-400 hidden sm:inline-block font-mono bg-slate-800/80 px-2 py-0.5 rounded-lg border border-slate-700">
               {user.email}
             </span>
+
+            {/* ปุ่ม Backup & Restore */}
+            <div className="flex items-center gap-1.5 border-l border-slate-700/50 pl-2">
+              <button
+                onClick={handleExportBackup}
+                className="px-2 py-1 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/30 rounded-xl text-[10px] font-semibold transition-all flex items-center gap-1"
+                title="สำรองข้อมูลลงคอม/มือถือ"
+              >
+                📥 สำรองข้อมูล
+              </button>
+
+              <label
+                className="px-2 py-1 bg-amber-600/20 hover:bg-amber-600 text-amber-400 hover:text-white border border-amber-500/30 rounded-xl text-[10px] font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                title="ย้อนคืนข้อมูลจากไฟล์สำรอง"
+              >
+                📤 นำเข้าข้อมูล
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleImportBackup}
+                  className="hidden"
+                />
+              </label>
+            </div>
 
             <button
               onClick={() => setIsDarkMode(!isDarkMode)}
@@ -1758,7 +1825,7 @@ function MainApp() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-slate-400 font-semibold text-[11px]">ปี (ค.ศ.)</label>
+                  <label className="text-slate-400 font-semibold text-[11px]">ปี</label>
                   <input
                     type="text"
                     value={newVehicleForm.year}
