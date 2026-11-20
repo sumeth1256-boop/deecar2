@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, Component, type ErrorInfo, type ReactNode } from 'react';
+import React, { useState, useEffect, useMemo, useRef, Component, type ErrorInfo, type ReactNode } from 'react';
 import { 
   Wrench, 
   Car, 
@@ -146,6 +146,14 @@ interface ServiceHistoryItem {
   servicedKm: number;
   servicedDate: string;
   note: string;
+  recordType?: 'service' | 'odometer';
+  vehicleId?: string;
+  previousKm?: number;
+  previousLastKm?: number;
+  previousLastDate?: string;
+  reverted?: boolean;
+  revertedAt?: string;
+  createdAt?: string;
 }
 
 // ============================================================================
@@ -326,8 +334,13 @@ function MainApp() {
   const [serviceHistory, setServiceHistory] = useState<ServiceHistoryItem[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
   const [isCloudLoading, setIsCloudLoading] = useState<boolean>(true);
+  const [cloudStatus, setCloudStatus] = useState<'loading' | 'connected' | 'error' | 'missing'>('loading');
+  const [cloudError, setCloudError] = useState<string>('');
+  const [cloudLoadedUid, setCloudLoadedUid] = useState<string>('');
+  const [cloudLastSync, setCloudLastSync] = useState<string>('');
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
 
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState('garage');
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [editingItem, setEditingItem] = useState<MaItem | null>(null);
   const [isAddItemOpen, setIsAddItemOpen] = useState(false);
@@ -365,11 +378,18 @@ function MainApp() {
     if (!user) {
       setVehicles([]);
       setServiceHistory([]);
+      setCloudStatus('loading');
+      setCloudError('');
+      setCloudLoadedUid('');
+      setCloudLastSync('');
       setIsCloudLoading(false);
       return;
     }
 
     setIsCloudLoading(true);
+    setCloudStatus('loading');
+    setCloudError('');
+    setCloudLoadedUid(user.uid);
     const docRef = doc(db, 'deecar_users', user.uid);
     const storageKey = getLocalStorageKey(user.uid);
     const loadLocalBackup = () => {
@@ -389,28 +409,57 @@ function MainApp() {
     };
 
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      setCloudStatus(docSnap.exists() ? 'connected' : 'missing');
+      setCloudError('');
+      setCloudLastSync(new Date().toLocaleString('th-TH'));
       if (docSnap.exists()) {
         const data = docSnap.data();
-        const loadedVehicles = Array.isArray(data.vehicles) ? data.vehicles : [];
-        const loadedHistory = Array.isArray(data.serviceHistory) ? data.serviceHistory : [];
+        const cloudVehicles = Array.isArray(data.vehicles) ? data.vehicles : [];
+        const cloudHistory = Array.isArray(data.serviceHistory) ? data.serviceHistory : [];
+        const local = loadLocalBackup();
+
+        // Never let an empty cloud document silently erase a non-empty local recovery copy.
+        const shouldRestoreLocal = cloudVehicles.length === 0 && !!local && local.vehicles.length > 0;
+        const loadedVehicles = shouldRestoreLocal ? local!.vehicles : cloudVehicles;
+        const loadedHistory = shouldRestoreLocal ? local!.serviceHistory : cloudHistory;
+
         setVehicles(loadedVehicles);
         setServiceHistory(loadedHistory);
-        setSelectedVehicleId(prevId => (!prevId || !loadedVehicles.some((v: Vehicle) => v.id === prevId)) ? (loadedVehicles[0]?.id || '') : prevId);
-        saveLocalBackup(loadedVehicles, loadedHistory);
+        setSelectedVehicleId(prevId =>
+          (!prevId || !loadedVehicles.some((v: Vehicle) => v.id === prevId))
+            ? (loadedVehicles[0]?.id || '')
+            : prevId
+        );
+
+        if (shouldRestoreLocal) {
+          saveLocalBackup(loadedVehicles, loadedHistory);
+          setDoc(docRef, {
+            vehicles: loadedVehicles,
+            serviceHistory: loadedHistory,
+            updatedAt: new Date().toISOString()
+          }).catch(err => console.error('Cloud recovery write failed', err));
+        } else {
+          saveLocalBackup(loadedVehicles, loadedHistory);
+        }
       } else {
-        // Restore local backup before initializing an empty cloud document.
         const local = loadLocalBackup();
         const initialVehicles = local?.vehicles || [];
         const initialHistory = local?.serviceHistory || [];
         setVehicles(initialVehicles);
         setServiceHistory(initialHistory);
         setSelectedVehicleId(initialVehicles[0]?.id || '');
-        setDoc(docRef, { vehicles: initialVehicles, serviceHistory: initialHistory }).catch(err => console.error('Cloud initialization failed', err));
+        setDoc(docRef, {
+          vehicles: initialVehicles,
+          serviceHistory: initialHistory,
+          updatedAt: new Date().toISOString()
+        }).catch(err => console.error('Cloud initialization failed', err));
       }
       setIsCloudLoading(false);
     }, (error) => {
       console.error('Firestore Listen Error:', error);
-      // Firestore unavailable: use local backup so refresh does not leave the app blank.
+      setCloudStatus('error');
+      setCloudError(`${error.code || 'unknown'}: ${error.message}`);
+      setCloudLastSync(new Date().toLocaleString('th-TH'));
       const local = loadLocalBackup();
       if (local) {
         setVehicles(local.vehicles);
@@ -425,19 +474,33 @@ function MainApp() {
 
   const saveToCloud = async (newVehicles: Vehicle[], newHistory: ServiceHistoryItem[]) => {
     if (!user) return;
-    // Save locally first for recovery after refresh, even when internet/cloud is unavailable.
+
+    const payload = {
+      vehicles: newVehicles,
+      serviceHistory: newHistory,
+      updatedAt: new Date().toISOString()
+    };
+
     try {
       localStorage.setItem(getLocalStorageKey(user.uid), JSON.stringify({
-        vehicles: newVehicles, serviceHistory: newHistory, savedAt: new Date().toISOString()
+        vehicles: newVehicles,
+        serviceHistory: newHistory,
+        savedAt: payload.updatedAt
       }));
-    } catch (localErr) {
-      console.warn('Local backup write failed', localErr);
+    } catch (localError) {
+      console.error('Local backup write failed', localError);
     }
+
+    saveQueueRef.current = saveQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        await setDoc(doc(db, 'deecar_users', user.uid), payload);
+      });
+
     try {
-      const docRef = doc(db, 'deecar_users', user.uid);
-      await setDoc(docRef, { vehicles: newVehicles, serviceHistory: newHistory });
-    } catch (e) {
-      console.error('Failed to save to cloud. Local backup is available.', e);
+      await saveQueueRef.current;
+    } catch (cloudError) {
+      console.error('Failed to save to Cloud. Local backup remains available.', cloudError);
     }
   };
 
@@ -472,19 +535,78 @@ function MainApp() {
 
   const handleConfirmUpdateKm = () => {
     if (!currentVehicle) return;
-    const newKmNum = Math.max(0, Number(tempKmInput) || 0);
-
+    const newKmNum = Math.max(0, Math.floor(Number(tempKmInput) || 0));
     if (newKmNum === currentKm) return;
-
-    const isConfirmed = window.confirm(
-      `คุณต้องการบันทึกเลขไมล์ใหม่ของ "${carInfo.brand} ${carInfo.model}" เป็น ${newKmNum.toLocaleString()} กม. ใช่หรือไม่?`
-    );
-
-    if (isConfirmed) {
-      updateCurrentVehicle({ currentKm: newKmNum });
-    } else {
+    if (newKmNum < currentKm) {
+      window.alert('เลขไมล์ใหม่ต่ำกว่าเลขไมล์ปัจจุบัน หากต้องการแก้ไขเลขไมล์ย้อนหลัง กรุณาตรวจสอบข้อมูลก่อน');
       setTempKmInput(String(currentKm));
+      return;
     }
+    const isConfirmed = window.confirm(`บันทึกเลขไมล์ ${newKmNum.toLocaleString()} กม. ของ ${carInfo.brand} ${carInfo.model} ใช่หรือไม่?`);
+    if (!isConfirmed) {
+      setTempKmInput(String(currentKm));
+      return;
+    }
+    const historyEntry: ServiceHistoryItem = {
+      id: `odo-${Date.now()}`,
+      carName: `${carInfo.brand} ${carInfo.model}`.trim(),
+      itemId: `odometer-${currentVehicle.id}`,
+      itemName: 'อัปเดตเลขไมล์ (Odometer)',
+      servicedKm: newKmNum,
+      servicedDate: today,
+      note: `เลขไมล์เดิม ${currentKm.toLocaleString()} กม. → ${newKmNum.toLocaleString()} กม.`,
+      recordType: 'odometer',
+      vehicleId: currentVehicle.id,
+      previousKm: currentKm,
+      createdAt: new Date().toISOString()
+    };
+    const updatedVehicles = vehicles.map(v => v.id === currentVehicle.id ? { ...v, currentKm: newKmNum, currentDate: today } : v);
+    const updatedHistory = [historyEntry, ...serviceHistory];
+    setVehicles(updatedVehicles);
+    setServiceHistory(updatedHistory);
+    setTempKmInput(String(newKmNum));
+    saveToCloud(updatedVehicles, updatedHistory);
+  };
+
+  const handleRevertHistory = (historyItem: ServiceHistoryItem) => {
+    if (historyItem.reverted) return;
+    const isOdometer = historyItem.recordType === 'odometer';
+    const confirmText = isOdometer
+      ? `ย้อนเลขไมล์จาก ${historyItem.servicedKm.toLocaleString()} กลับเป็น ${Number(historyItem.previousKm || 0).toLocaleString()} กม. ใช่หรือไม่?`
+      : `ย้อนรายการ "${historyItem.itemName}" ของ ${historyItem.carName} ใช่หรือไม่?`;
+    if (!window.confirm(confirmText)) return;
+
+    let updatedVehicles = vehicles;
+    if (isOdometer && historyItem.vehicleId) {
+      const target = vehicles.find(v => v.id === historyItem.vehicleId);
+      // Prevent old odometer records from overwriting a newer current reading.
+      if (target && target.currentKm === historyItem.servicedKm) {
+        updatedVehicles = vehicles.map(v => v.id === historyItem.vehicleId ? { ...v, currentKm: Number(historyItem.previousKm || 0) } : v);
+      } else if (target) {
+        alert('ไม่สามารถคืนเลขไมล์อัตโนมัติได้ เนื่องจากมีการบันทึกเลขไมล์ใหม่หลังรายการนี้ กรุณาตรวจสอบเลขไมล์ด้วยตนเอง');
+        return;
+      }
+    } else if ((historyItem.vehicleId || vehicles.find(v => `${v.carInfo?.brand} ${v.carInfo?.model}`.trim() === historyItem.carName)?.id) && historyItem.itemId) {
+      // Only restore the MA item's previous state when this history entry has a snapshot.
+      // Older records don't contain snapshots, so mark them reverted without clearing current data.
+      if (historyItem.previousLastKm !== undefined || historyItem.previousLastDate !== undefined) {
+        const targetVehicleId = historyItem.vehicleId || vehicles.find(v => `${v.carInfo?.brand} ${v.carInfo?.model}`.trim() === historyItem.carName)?.id;
+        updatedVehicles = vehicles.map(v => {
+          if (v.id !== targetVehicleId) return v;
+          return { ...v, items: (v.items || []).map(item => item.id === historyItem.itemId ? { ...item, lastKm: historyItem.previousLastKm, lastDate: historyItem.previousLastDate } : item) };
+        });
+      } else {
+        alert('รายการประวัติเก่านี้ไม่มี snapshot ของสถานะก่อนบันทึก จึงจะทำเครื่องหมาย Reverted โดยไม่เปลี่ยนสถานะ MA ปัจจุบัน');
+      }
+    }
+    const updatedHistory = serviceHistory.map(h => h.id === historyItem.id ? { ...h, reverted: true, revertedAt: new Date().toISOString() } : h);
+    setVehicles(updatedVehicles);
+    setServiceHistory(updatedHistory);
+    if (currentVehicle) {
+      const updatedCurrent = updatedVehicles.find(v => v.id === currentVehicle.id);
+      if (updatedCurrent) setTempKmInput(String(updatedCurrent.currentKm || 0));
+    }
+    saveToCloud(updatedVehicles, updatedHistory);
   };
 
   const currentVehicleEvaluatedItems = useMemo(() => {
@@ -653,7 +775,12 @@ function MainApp() {
       itemName: item.name,
       servicedKm: currentKm,
       servicedDate: currentDate,
-      note: 'บำรุงรักษา/ต่ออายุเรียบร้อย'
+      note: 'บำรุงรักษา/ต่ออายุเรียบร้อย',
+      recordType: 'service',
+      vehicleId: currentVehicle.id,
+      previousLastKm: item.lastKm,
+      previousLastDate: item.lastDate,
+      createdAt: new Date().toISOString()
     };
 
     const updatedHistory = [historyEntry, ...serviceHistory];
@@ -830,14 +957,14 @@ function MainApp() {
 
   if (!user) {
     return (
-      <div className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-200 ${isDarkMode ? 'bg-[#070B10] text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
+      <div className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-200 ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
         <div className={`w-full max-w-sm p-6 rounded-2xl border shadow-xl space-y-5 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
           <div className="text-center space-y-1.5">
-            <div className="bg-gradient-to-tr from-cyan-500 to-blue-600 w-12 h-12 rounded-xl flex items-center justify-center shadow-md mx-auto text-white">
+            <div className="bg-gradient-to-tr from-blue-600 to-indigo-500 w-12 h-12 rounded-xl flex items-center justify-center shadow-md mx-auto text-white">
               <Car className="w-6 h-6" />
             </div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-cyan-300 to-blue-400 bg-clip-text text-transparent">
-              DEECAR
+            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
+              DEECAR Tracker
             </h1>
             <p className="text-[11px] text-slate-400">ระบบเช็กลิสต์ระยะบำรุงรักษาและเอกสารรถยนต์ส่วนบุคคล</p>
           </div>
@@ -957,31 +1084,42 @@ function MainApp() {
   }
 
   return (
-    <div className={`deecar-modern min-h-screen text-xs transition-colors duration-200 ${isDarkMode ? 'bg-[#070B10] text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
-      <style>{`
-        .deecar-modern button { transition: transform .16s ease, background .16s ease, border-color .16s ease; }
-        .deecar-modern button:hover { transform: translateY(-1px); }
-        .deecar-modern input, .deecar-modern select { border-radius: 10px !important; }
-        .deecar-modern aside { background: linear-gradient(180deg,#0c141d 0%,#080d13 100%); border-color:#1d2a36 !important; }
-        .deecar-modern section { background-color:#070b10; }
-        .deecar-modern header { box-shadow: 0 8px 32px rgba(0,0,0,.22); }
-        .deecar-modern h2 { letter-spacing:-.025em; }
-        .deecar-modern .grid > div { border-radius:20px; }
-      `}</style>
+    <div className={`deecar-shell min-h-screen text-xs transition-colors duration-200 ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
+      <style>{`\n        .deecar-shell button,.deecar-shell input,.deecar-shell select { -webkit-tap-highlight-color: transparent; }\n        .deecar-shell button { transition: transform .15s ease, background-color .15s ease, border-color .15s ease; }\n        @media (max-width: 640px) {
+          html, body, #root { width: 100%; max-width: 100%; margin: 0; overflow-x: hidden; }
+          .deecar-shell { width: 100%; max-width: 100vw; overflow-x: clip; }
+          .deecar-shell *, .deecar-shell *::before, .deecar-shell *::after { box-sizing: border-box; min-width: 0; }
+          .deecar-shell main { width: 100%; max-width: 100%; padding-left: 10px !important; padding-right: 10px !important; }
+          .deecar-shell header > div { width: 100%; max-width: 100%; padding-left: 10px !important; padding-right: 10px !important; flex-wrap: wrap; align-items: flex-start; }
+          .deecar-shell header > div > div:first-child { flex: 1 1 100%; width: 100%; }
+          .deecar-shell header > div > div:last-child { flex: 1 1 100%; width: 100%; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+          .deecar-shell header button, .deecar-shell header label { min-height: 40px; }
+          .deecar-shell input, .deecar-shell select { font-size: 16px !important; max-width: 100%; }
+          .deecar-shell button { min-height: 40px; max-width: 100%; }
+          .deecar-shell main > div { max-width: 100%; }
+          .deecar-shell main > div.flex.border-b { flex-wrap: wrap; overflow-x: visible !important; }
+          .deecar-shell main > div.flex.border-b > button { flex: 1 1 calc(50% - 6px); justify-content: center; white-space: normal !important; text-align: center; }
+          .deecar-shell main select { width: 100%; flex: 1 1 100%; }
+          .deecar-shell main .grid { min-width: 0; }
+          .deecar-shell main .grid input { min-width: 0; width: 100%; }
+          .deecar-shell main .overflow-x-auto { max-width: 100%; }
+          .deecar-shell main .flex { min-width: 0; }
+          .deecar-shell main .whitespace-nowrap { white-space: normal; }
+        }\n      `}</style>
       {/* Header Bar */}
-      <header className={`border-b sticky top-0 z-30 backdrop-blur-md ${isDarkMode ? 'bg-[#0B1119]/95 border-[#1D2A36]' : 'bg-white/80 border-slate-200'}`}>
-        <div className="max-w-none px-5 h-[72px] flex items-center justify-between">
+      <header className={`border-b sticky top-0 z-30 backdrop-blur-md ${isDarkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white/80 border-slate-200'}`}>
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 min-h-14 py-2 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5">
-            <div className="bg-gradient-to-tr from-cyan-500 to-blue-600 p-2 rounded-2xl shadow-lg shadow-cyan-900/20 text-white">
+            <div className="bg-gradient-to-tr from-blue-600 to-indigo-500 p-2 rounded-xl shadow-sm text-white">
               <Car className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h1 className="font-black text-base tracking-[.16em] bg-gradient-to-r from-cyan-300 to-blue-400 bg-clip-text text-transparent">
-                  DEECAR
+                <h1 className="font-bold text-sm tracking-wide bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
+                  DEECAR Tracker
                 </h1>
-                <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                  <Cloud className="w-2.5 h-2.5" /> Online
+                <span className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full border ${cloudStatus === 'connected' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : cloudStatus === 'error' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'}`}>
+                  <Cloud className="w-2.5 h-2.5" /> {cloudStatus === 'connected' ? 'Cloud Synced' : cloudStatus === 'error' ? 'Sync Error' : cloudStatus === 'missing' ? 'No Cloud Document' : 'Syncing...'}
                 </span>
               </div>
               <p className="text-[10px] text-slate-400">ระบบเช็กลิสต์ระยะบำรุงรักษาและต่อเอกสารยานพาหนะ</p>
@@ -1041,7 +1179,20 @@ function MainApp() {
       </header>
 
       {/* Main Container */}
-      <main className="max-w-none min-h-[calc(100vh-64px)] flex">
+      <main className="max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-5 space-y-3 sm:space-y-5">
+
+        {vehicles.length === 0 && !isCloudLoading && (
+          <div className={`rounded-2xl border p-3 text-[11px] space-y-1 ${isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-300' : 'bg-white border-slate-200 text-slate-700'}`}>
+            <div className="font-bold flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-400" /> Data Sync Diagnostics</div>
+            <div>Auth UID: <span className="font-mono break-all">{cloudLoadedUid || user.uid}</span></div>
+            <div>Cloud status: <span className="font-semibold">{cloudStatus}</span></div>
+            <div>Vehicles loaded: 0</div>
+            <div>Service history: {serviceHistory.length}</div>
+            {cloudLastSync && <div>Last listener event: {cloudLastSync}</div>}
+            {cloudError && <div className="text-rose-400 break-words">Firestore error: {cloudError}</div>}
+            {cloudStatus === 'missing' && <div className="text-amber-400">Firestore document not found for this UID.</div>}
+          </div>
+        )}
 
         {isCloudLoading ? (
           <div className="p-10 text-center text-slate-400 space-y-2">
@@ -1050,24 +1201,8 @@ function MainApp() {
           </div>
         ) : (
           <>
-            {/* DEECAR 3.0 Navigation: replaced horizontal tabs with a real sidebar */}
-            <aside className={`hidden md:flex w-[264px] shrink-0 flex-col border-r px-5 py-6 ${isDarkMode ? 'bg-[#0B1119] border-[#1D2A36]' : 'bg-white border-slate-200'}`}>
-              <div className={`mb-5 rounded-2xl p-4 border shadow-lg ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                <div className="text-[10px] uppercase tracking-[.2em] font-bold text-cyan-500">Mobility / Maintenance</div>
-                <div className="text-lg font-black tracking-[.15em] mt-1">DEECAR <span className="text-cyan-500">3.0</span></div>
-                <div className="text-[10px] text-slate-500 mt-1">Vehicle Care Workspace</div>
-              </div>
-              <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold px-2 mb-2">Workspace</div>
-              {([['garage',LayoutGrid,'Garage',vehicles.length],['dashboard',Gauge,'Maintenance Center',summary.overdueCount+summary.soonCount],['items',Wrench,'Checklist',items.length],['preset-catalog',BookOpen,'MA Library',null],['history',History,'Service History',serviceHistory.length]] as const).map(([tab,Icon,label,count]) => (
-                <button key={tab} onClick={() => setActiveTab(tab)} className={`w-full flex items-center gap-3 px-3.5 py-3.5 rounded-xl mb-1.5 text-left text-sm font-semibold transition-all ${activeTab===tab ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-400/25 shadow-[inset_3px_0_0_0_#22d3ee]' : isDarkMode ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-100' : 'text-slate-600 hover:bg-slate-100'}`}>
-                  <Icon className="w-4 h-4 shrink-0"/><span className="flex-1">{label}</span>{count!==null && <span className={`text-[10px] ${tab==='dashboard' && count>0 ? 'text-rose-400' : 'text-slate-500'}`}>{count}</span>}
-                </button>
-              ))}
-              <div className="mt-auto pt-4 border-t border-slate-800 text-[10px] text-slate-500">Signed in · {user.email}</div>
-            </aside>
-            <section className={`flex-1 min-w-0 px-3 md:px-6 py-4 pb-24 md:pb-6 space-y-4 ${isDarkMode ? 'bg-[#070B10]' : 'bg-slate-50'}`}>
-            {/* Vehicle Control Panel: dedicated Garage workspace only */}
-            <div className={`p-4 rounded-2xl border shadow-xl space-y-3 ${isDarkMode ? 'bg-[#101923] border-[#22313D]' : 'bg-white border-slate-200'}`}>
+            {/* Top Control Bar */}
+            <div className={`p-4 rounded-2xl border shadow-md space-y-3 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
               
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 pb-3 border-b border-slate-700/50">
                 <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -1164,22 +1299,33 @@ function MainApp() {
                       <Gauge className="w-5 h-5" />
                     </div>
                     <div className="flex-1">
-                      <label className="text-[10px] text-slate-400 font-medium flex justify-between">
-                        <span>เลขไมล์ปัจจุบัน (คลิกออกนอกช่องเพื่อบันทึก)</span>
+                      <label className="text-[10px] sm:text-xs text-slate-400 font-medium flex flex-wrap justify-between gap-1">
+                        <span>เลขไมล์ปัจจุบัน</span>
                         <span className="text-emerald-400 font-mono">Odometer</span>
                       </label>
-                      <div className="relative mt-1">
-                        <input
-                          type="number"
-                          value={tempKmInput}
-                          onChange={(e) => setTempKmInput(e.target.value)}
-                          onBlur={handleConfirmUpdateKm}
-                          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                          className={`w-full px-2.5 py-1 text-sm font-mono font-bold rounded-lg border ${
-                            isDarkMode ? 'bg-slate-800 border-slate-700 text-emerald-400' : 'bg-slate-50 border-slate-300 text-emerald-600'
-                          }`}
-                        />
-                        <span className="absolute right-2.5 top-1.5 text-[11px] text-slate-400">กม.</span>
+                      <div className="mt-1 flex flex-col sm:flex-row gap-2">
+                        <div className="relative flex-1 min-w-0">
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            value={tempKmInput}
+                            onChange={(e) => setTempKmInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmUpdateKm(); }}
+                            className={`w-full min-h-11 px-3 pr-12 text-base sm:text-sm font-mono font-bold rounded-xl border focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
+                              isDarkMode ? 'bg-slate-800 border-slate-700 text-emerald-400' : 'bg-slate-50 border-slate-300 text-emerald-600'
+                            }`}
+                          />
+                          <span className="absolute right-3 top-3 text-xs text-slate-400">กม.</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleConfirmUpdateKm}
+                          disabled={!tempKmInput || Number(tempKmInput) === currentKm}
+                          className="min-h-11 sm:min-h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm whitespace-nowrap"
+                        >
+                          <CheckCircle2 className="w-4 h-4" /> บันทึกเลขไมล์
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1206,11 +1352,74 @@ function MainApp() {
               )}
             </div>
 
-              <div className="flex items-center justify-between gap-2 rounded-2xl px-1 py-2">
-                <div><div className="text-[10px] uppercase tracking-[.18em] text-cyan-400 font-bold">DEECAR / WORKSPACE</div><h2 className="text-lg font-bold mt-1">{activeTab==='garage'?'Garage Overview':activeTab==='dashboard'?'Maintenance Center':activeTab==='items'?'MA Checklist':activeTab==='preset-catalog'?'MA Catalog':'Service History'}</h2></div>
-                <div className="hidden sm:block text-[10px] text-slate-500">{vehicles.length} vehicles · {serviceHistory.length} records</div>
-              </div>
-              {/* Vehicle controls are retained and rendered inside the workspace */}
+            {/* Dashboard Navigation Tabs */}
+            <div className="flex border-b border-slate-700/50 gap-1.5 overflow-x-auto pb-1">
+              <button
+                onClick={() => setActiveTab('garage')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
+                  activeTab === 'garage'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                    : isDarkMode ? 'text-slate-400 hover:bg-slate-900' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                📊 ภาพรวมรถทุกคัน ({vehicles.length})
+              </button>
+
+              <button
+                onClick={() => setActiveTab('dashboard')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
+                  activeTab === 'dashboard'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                    : isDarkMode ? 'text-slate-400 hover:bg-slate-900' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Gauge className="w-3.5 h-3.5" />
+                เช็กลิสต์ MA คันที่เลือก
+                {(summary.overdueCount > 0 || summary.soonCount > 0) && (
+                  <span className="bg-rose-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
+                    {summary.overdueCount + summary.soonCount}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => setActiveTab('items')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
+                  activeTab === 'items'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                    : isDarkMode ? 'text-slate-400 hover:bg-slate-900' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Wrench className="w-3.5 h-3.5" />
+                จัดการหัวข้อ MA คันนี้ ({items.length})
+              </button>
+
+              <button
+                onClick={() => setActiveTab('preset-catalog')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
+                  activeTab === 'preset-catalog'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                    : isDarkMode ? 'text-slate-400 hover:bg-slate-900' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                คลัง MA มาตรฐาน
+              </button>
+
+              <button
+                onClick={() => setActiveTab('history')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
+                  activeTab === 'history'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                    : isDarkMode ? 'text-slate-400 hover:bg-slate-900' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <History className="w-3.5 h-3.5" />
+                ประวัติการบันทึก ({serviceHistory.length})
+              </button>
+            </div>
+
             {/* TAB 0: GARAGE ALL VEHICLES SUMMARY */}
             {activeTab === 'garage' && (
               <div className="space-y-4">
@@ -1240,13 +1449,13 @@ function MainApp() {
                     </button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {allVehiclesSummary.map((vSummary: any) => {
                       const isSelected = vSummary.id === selectedVehicleId;
                       return (
                         <div 
                           key={vSummary.id} 
-                          className={`p-5 rounded-[22px] border transition-all relative flex flex-col justify-between shadow-lg hover:-translate-y-0.5 ${
+                          className={`p-4 rounded-2xl border transition-all relative flex flex-col justify-between ${
                             isSelected 
                               ? 'border-blue-500 shadow-md shadow-blue-500/10' 
                               : isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
@@ -1667,7 +1876,7 @@ function MainApp() {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div className={`p-4 rounded-2xl border space-y-3 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
                     <h3 className="font-bold text-xs flex items-center gap-1.5 text-blue-400 border-b pb-2.5 border-slate-700/50">
                       <Car className="w-4 h-4" /> {PRESET_MA_GROUPS.car.label} ({PRESET_MA_GROUPS.car.items.length} รายการ)
@@ -1716,8 +1925,8 @@ function MainApp() {
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h2 className="text-sm font-bold">ประวัติการบันทึกการบำรุงรักษา/ต่อเอกสารทั้งหมด</h2>
-                    <p className="text-[10px] text-slate-400">ประวัติการกด Reset เช็กลิสต์และต่อเอกสารของรถทุกคันในระบบ</p>
+                    <h2 className="text-base sm:text-lg font-bold">ประวัติการเปลี่ยนแปลงทั้งหมด</h2>
+                    <p className="text-xs text-slate-400">รายการ Service, ต่อเอกสาร และการอัปเดตเลขไมล์ พร้อมย้อนกลับได้</p>
                   </div>
 
                   {serviceHistory.length > 0 && (
@@ -1743,20 +1952,26 @@ function MainApp() {
                   ) : (
                     <div className="divide-y divide-slate-800/40">
                       {serviceHistory.map((h: ServiceHistoryItem) => (
-                        <div key={h.id} className="p-3 flex items-center justify-between">
-                          <div className="flex items-center gap-2.5">
-                            <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl">
-                              <CheckCircle2 className="w-4 h-4" />
+                        <div key={h.id} className={`p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 transition-colors ${h.reverted ? 'opacity-60' : 'hover:bg-slate-800/30'}`}>
+                          <div className="flex items-start gap-3 min-w-0 flex-1">
+                            <div className={`p-2.5 rounded-xl shrink-0 ${h.reverted ? 'bg-amber-500/10 text-amber-400' : h.recordType === 'odometer' ? 'bg-blue-500/10 text-blue-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                              {h.reverted ? <RotateCcw className="w-4 h-4" /> : h.recordType === 'odometer' ? <Gauge className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
                             </div>
-                            <div>
-                              <p className="font-semibold text-xs">{h.itemName} <span className="text-[10px] text-blue-400 font-normal">({h.carName})</span></p>
-                              <p className="text-[10px] text-slate-400">{h.note}</p>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-sm leading-snug break-words">{h.itemName} <span className="text-xs text-blue-400 font-normal">({h.carName})</span></p>
+                              <p className="text-xs text-slate-400 mt-1 break-words">{h.note}</p>
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                <span className={`px-2 py-1 rounded-full text-[10px] font-semibold ${h.recordType === 'odometer' ? 'bg-blue-500/10 text-blue-400' : 'bg-emerald-500/10 text-emerald-400'}`}>{h.recordType === 'odometer' ? 'Odometer Update' : 'Service Record'}</span>
+                                {h.reverted && <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 text-[10px] font-semibold">Reverted</span>}
+                              </div>
                             </div>
                           </div>
-
-                          <div className="text-right font-mono text-[11px]">
-                            <p className="text-emerald-400 font-bold">{h.servicedKm?.toLocaleString()} กม.</p>
-                            <p className="text-slate-400 text-[10px]">{h.servicedDate}</p>
+                          <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 sm:shrink-0">
+                            <div className="text-left sm:text-right font-mono text-xs">
+                              <p className={`font-bold ${h.reverted ? 'text-amber-400' : 'text-emerald-400'}`}>{h.servicedKm?.toLocaleString()} กม.</p>
+                              <p className="text-slate-400 text-[11px]">{h.servicedDate}</p>
+                            </div>
+                            {!h.reverted && <button type="button" onClick={() => handleRevertHistory(h)} className="min-h-10 px-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 font-semibold text-xs inline-flex items-center gap-1.5 whitespace-nowrap"><RotateCcw className="w-3.5 h-3.5" /> Revert</button>}
                           </div>
                         </div>
                       ))}
@@ -1765,9 +1980,9 @@ function MainApp() {
                 </div>
               </div>
             )}
-            </section>
           </>
         )}
+
       </main>
 
       {/* Modal 1: เพิ่มรถ/มอเตอร์ไซค์ใหม่ */}
@@ -2072,9 +2287,6 @@ function MainApp() {
         </div>
       )}
 
-      <nav className={`md:hidden fixed bottom-0 inset-x-0 z-40 grid grid-cols-5 border-t px-1 py-1.5 pb-[max(6px,env(safe-area-inset-bottom))] ${isDarkMode ? 'bg-slate-950/95 border-slate-800 backdrop-blur' : 'bg-white/95 border-slate-200 backdrop-blur'}`}>
-        {([['garage',LayoutGrid,'Garage'],['dashboard',Gauge,'MA'],['items',Wrench,'Checklist'],['preset-catalog',BookOpen,'Catalog'],['history',History,'History']] as const).map(([tab,Icon,label]) => <button key={tab} onClick={() => setActiveTab(tab)} className={`flex flex-col items-center gap-1 py-1 text-[9px] ${activeTab===tab ? 'text-cyan-500' : 'text-slate-500'}`}><Icon className="w-4 h-4"/><span>{label}</span></button>)}
-      </nav>
     </div>
   );
 }
