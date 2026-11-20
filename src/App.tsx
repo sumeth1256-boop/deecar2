@@ -1,9 +1,3 @@
-/* DEECAR 3.0 FULL UI REBUILD
- * New application shell, persistent desktop sidebar, mobile bottom navigation,
- * new visual hierarchy and panel styling. Existing Firebase/auth/data handlers
- * and the original feature tab contents are intentionally retained.
- * Build/runtime validation against the user's repository is still required.
- */
 import React, { useState, useEffect, useMemo, Component, type ErrorInfo, type ReactNode } from 'react';
 import { 
   Wrench, 
@@ -843,7 +837,7 @@ function MainApp() {
               <Car className="w-6 h-6" />
             </div>
             <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-              DEECAR
+              DEECAR Tracker
             </h1>
             <p className="text-[11px] text-slate-400">ระบบเช็กลิสต์ระยะบำรุงรักษาและเอกสารรถยนต์ส่วนบุคคล</p>
           </div>
@@ -963,30 +957,9 @@ function MainApp() {
   }
 
   return (
-    <div className={`deecar-rebuild min-h-screen text-xs transition-colors duration-200 ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
-      <style>{`
-        /* DEECAR 3.0 FULL UI REBUILD — structural layout overrides */
-        .deecar-rebuild { --dc-bg:#080d13; --dc-panel:#111a24; --dc-panel2:#172230; --dc-border:#263446; --dc-cyan:#38c9e5; --dc-text:#e5edf7; --dc-muted:#8495aa; background:var(--dc-bg)!important; color:var(--dc-text)!important; font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif; }
-        .deecar-rebuild header { background:rgba(8,13,19,.94)!important; border-color:var(--dc-border)!important; box-shadow:0 10px 40px rgba(0,0,0,.22); }
-        .deecar-rebuild header > div { max-width:none!important; padding-left:28px!important; padding-right:28px!important; height:76px!important; }
-        .deecar-rebuild main { max-width:none!important; padding:24px 26px 32px 260px!important; display:flex; flex-direction:column; gap:22px!important; }
-        .deecar-rebuild main > div:first-child { background:linear-gradient(145deg,#131e2a,#0f1721)!important; border:1px solid var(--dc-border)!important; border-radius:22px!important; box-shadow:0 18px 50px rgba(0,0,0,.2)!important; padding:22px!important; }
-        .deecar-rebuild main > div.flex.border-b { position:fixed; z-index:25; left:0; top:76px; bottom:0; width:230px; padding:22px 14px!important; display:flex!important; flex-direction:column!important; gap:8px!important; overflow:visible!important; border:0!important; border-right:1px solid var(--dc-border)!important; background:#0b1119!important; }
-        .deecar-rebuild main > div.flex.border-b > button { width:100%; flex:none!important; min-height:48px; padding:12px 14px!important; border-radius:12px!important; white-space:normal!important; text-align:left!important; justify-content:flex-start!important; font-size:12px!important; background:transparent!important; color:#94a3b8!important; border:1px solid transparent!important; box-shadow:none!important; }
-        .deecar-rebuild main > div.flex.border-b > button:hover { background:#172230!important; border-color:#263446!important; color:#e5edf7!important; }
-        .deecar-rebuild main > div.flex.border-b > button[class*="bg-blue-600"] { background:linear-gradient(135deg,#0d829e,#1caecb)!important; color:#fff!important; border-color:#22bad7!important; box-shadow:0 8px 24px rgba(34,184,214,.18)!important; }
-        .deecar-rebuild main h2 { font-size:18px!important; letter-spacing:-.02em; }
-        .deecar-rebuild main .rounded-2xl { border-radius:18px!important; }
-        .deecar-rebuild main .shadow-md,.deecar-rebuild main .shadow-lg { box-shadow:0 12px 30px rgba(0,0,0,.18)!important; }
-        .deecar-rebuild main button { transition:all .18s ease!important; }
-        .deecar-rebuild main button:hover { transform:translateY(-1px); }
-        .deecar-rebuild main input,.deecar-rebuild main select { background:#182330!important; border-color:#2b3b50!important; color:#e5edf7!important; border-radius:10px!important; }
-        .deecar-rebuild main .grid { gap:16px!important; }
-        .deecar-rebuild main > div:nth-child(n+3) { min-width:0; }
-        @media(max-width:900px){ .deecar-rebuild main { padding:20px 14px 90px!important; } .deecar-rebuild main > div.flex.border-b { top:auto; bottom:0; width:100%; height:72px; padding:8px!important; flex-direction:row!important; overflow-x:auto!important; border-right:0!important; border-top:1px solid var(--dc-border)!important; } .deecar-rebuild main > div.flex.border-b > button { width:auto; min-width:110px; min-height:50px; justify-content:center!important; text-align:center!important; padding:8px!important; font-size:10px!important; } .deecar-rebuild header > div { padding-left:14px!important; padding-right:14px!important; height:68px!important; } }
-        @media(max-width:640px){ .deecar-rebuild main { padding:14px 10px 88px!important; gap:14px!important; } .deecar-rebuild main > div:first-child { padding:14px!important; } .deecar-rebuild header p { display:none; } }
-      `}</style>
-      {/* Rebuilt DEECAR 3.0 Header */}
+    <div className={`min-h-screen text-xs transition-colors duration-200 ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
+      
+      {/* Header Bar */}
       <header className={`border-b sticky top-0 z-30 backdrop-blur-md ${isDarkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white/80 border-slate-200'}`}>
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -1058,9 +1031,34 @@ function MainApp() {
         </div>
       </header>
 
-      {/* Main Container */}
-      <main className="max-w-6xl mx-auto px-4 py-4 space-y-4">
-
+      {/* DEECAR 3.0 — real navigation/layout rebuild */}
+      <div className={`deecar3-shell min-h-[calc(100vh-56px)] flex ${isDarkMode ? 'bg-[#080d14]' : 'bg-slate-50'}`}>
+        <style>{`
+          .deecar3-sidebar { backdrop-filter: blur(18px); }
+          .deecar3-content { animation: deecar3fade .22s ease-out; }
+          @keyframes deecar3fade { from { opacity: .72; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+          @media (min-width: 768px) { .deecar3-content { max-width: calc(100vw - 248px); } }
+        `}</style>
+        <aside className={`deecar3-sidebar hidden md:flex w-[248px] shrink-0 flex-col sticky top-14 h-[calc(100vh-56px)] border-r ${isDarkMode ? 'bg-[#0b121b] border-slate-800' : 'bg-white border-slate-200'}`}>
+          <div className="px-5 py-5">
+            <div className="text-[10px] tracking-[.22em] font-bold text-cyan-500">MOBILITY / MAINTENANCE</div>
+            <div className="text-xl font-black tracking-widest mt-1">DEECAR <span className="text-cyan-400">3.0</span></div>
+            <div className="text-[10px] text-slate-500 mt-1">Vehicle care control center</div>
+          </div>
+          <div className="px-3 space-y-1">
+            {([['garage',LayoutGrid,'ภาพรวมรถทั้งหมด'],['dashboard',Gauge,'Maintenance Overview'],['items',Wrench,'จัดการรายการ MA'],['preset-catalog',BookOpen,'คลัง MA มาตรฐาน'],['history',History,'ประวัติการบันทึก']] as const).map(([tab,Icon,label]) => {
+              const selected = activeTab === tab;
+              return <button key={tab} onClick={() => setActiveTab(tab)} className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-left text-xs font-semibold transition-all ${selected ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/20 shadow-sm' : isDarkMode ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'}`}><Icon className="w-4 h-4"/><span>{label}</span>{tab==='garage' && <span className="ml-auto text-[10px] opacity-70">{vehicles.length}</span>}{tab==='dashboard' && (summary.overdueCount+summary.soonCount>0) && <span className="ml-auto rounded-full bg-rose-500 text-white px-1.5 py-0.5 text-[9px]">{summary.overdueCount+summary.soonCount}</span>}</button>
+            })}
+          </div>
+          <div className="mt-auto p-4">
+            <div className={`rounded-xl p-3 border ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'}`}><div className="text-[10px] text-slate-500">Signed in</div><div className="text-[11px] truncate font-medium mt-1">{user.email}</div><div className="flex items-center gap-1 text-[10px] text-emerald-400 mt-2"><Cloud className="w-3 h-3"/> Cloud Sync</div></div>
+          </div>
+        </aside>
+        <main className="deecar3-content flex-1 min-w-0 max-w-none px-3 md:px-6 py-4 pb-24 md:pb-6 space-y-4">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 grid grid-cols-5 gap-1 border-t border-slate-800 bg-[#0b121b]/95 backdrop-blur p-2">
+          {([['garage',LayoutGrid,'Garage'],['dashboard',Gauge,'MA'],['items',Wrench,'Items'],['preset-catalog',BookOpen,'Catalog'],['history',History,'History']] as const).map(([tab,Icon,label]) => <button key={tab} onClick={()=>setActiveTab(tab)} className={`flex flex-col items-center gap-1 py-1 text-[9px] ${activeTab===tab?'text-cyan-300':'text-slate-500'}`}><Icon className="w-4 h-4"/><span>{label}</span></button>)}
+        </nav>
         {isCloudLoading ? (
           <div className="p-10 text-center text-slate-400 space-y-2">
             <RefreshCw className="w-6 h-6 animate-spin mx-auto text-blue-500" />
@@ -1206,74 +1204,6 @@ function MainApp() {
 
                 </div>
               )}
-            </div>
-
-            {/* Dashboard Navigation Tabs */}
-            <div className="flex border-b border-slate-700/50 gap-1.5 overflow-x-auto pb-1">
-              <button
-                onClick={() => setActiveTab('garage')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
-                  activeTab === 'garage'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                    : isDarkMode ? 'text-slate-400 hover:bg-slate-900' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <LayoutGrid className="w-3.5 h-3.5" />
-                📊 ภาพรวมรถทุกคัน ({vehicles.length})
-              </button>
-
-              <button
-                onClick={() => setActiveTab('dashboard')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
-                  activeTab === 'dashboard'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                    : isDarkMode ? 'text-slate-400 hover:bg-slate-900' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Gauge className="w-3.5 h-3.5" />
-                เช็กลิสต์ MA คันที่เลือก
-                {(summary.overdueCount > 0 || summary.soonCount > 0) && (
-                  <span className="bg-rose-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
-                    {summary.overdueCount + summary.soonCount}
-                  </span>
-                )}
-              </button>
-
-              <button
-                onClick={() => setActiveTab('items')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
-                  activeTab === 'items'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                    : isDarkMode ? 'text-slate-400 hover:bg-slate-900' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Wrench className="w-3.5 h-3.5" />
-                จัดการหัวข้อ MA คันนี้ ({items.length})
-              </button>
-
-              <button
-                onClick={() => setActiveTab('preset-catalog')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
-                  activeTab === 'preset-catalog'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                    : isDarkMode ? 'text-slate-400 hover:bg-slate-900' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                คลัง MA มาตรฐาน
-              </button>
-
-              <button
-                onClick={() => setActiveTab('history')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
-                  activeTab === 'history'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                    : isDarkMode ? 'text-slate-400 hover:bg-slate-900' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <History className="w-3.5 h-3.5" />
-                ประวัติการบันทึก ({serviceHistory.length})
-              </button>
             </div>
 
             {/* TAB 0: GARAGE ALL VEHICLES SUMMARY */}
@@ -2137,6 +2067,7 @@ function MainApp() {
         </div>
       )}
 
+      </div>
     </div>
   );
 }
