@@ -239,9 +239,20 @@ const PRESET_MA_GROUPS = {
   }
 };
 
+// วันที่ปัจจุบันตาม timezone เครื่องผู้ใช้ (ไม่ใช้ UTC เพื่อป้องกันวันที่คลาดเคลื่อน)
+const getLocalToday = (): string => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getLocalStorageKey = (uid: string) => `deecar_backup_${uid}`;
+
 const evaluateVehicleItems = (vehicle: Vehicle): MaItem[] => {
   if (!vehicle || !vehicle.items) return [];
-  const currentDate = vehicle.currentDate || new Date().toISOString().split('T')[0];
+  const currentDate = getLocalToday();
   const currentKm = Number(vehicle.currentKm) || 0;
   const now = new Date(currentDate);
 
@@ -322,6 +333,13 @@ function MainApp() {
   const [isAddItemOpen, setIsAddItemOpen] = useState(false);
 
   const [tempKmInput, setTempKmInput] = useState<string>('');
+  const [today, setToday] = useState<string>(getLocalToday());
+
+  // Refresh current date periodically and automatically at date rollover
+  useEffect(() => {
+    const timer = window.setInterval(() => setToday(getLocalToday()), 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const [isAddVehicleOpen, setIsAddVehicleOpen] = useState(false);
   const [newVehicleForm, setNewVehicleForm] = useState({
@@ -353,34 +371,52 @@ function MainApp() {
 
     setIsCloudLoading(true);
     const docRef = doc(db, 'deecar_users', user.uid);
+    const storageKey = getLocalStorageKey(user.uid);
+    const loadLocalBackup = () => {
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (!raw) return null;
+        const backup = JSON.parse(raw);
+        if (backup && Array.isArray(backup.vehicles)) {
+          return { vehicles: backup.vehicles, serviceHistory: Array.isArray(backup.serviceHistory) ? backup.serviceHistory : [] };
+        }
+      } catch (err) { console.warn('Local backup read failed', err); }
+      return null;
+    };
+    const saveLocalBackup = (v: Vehicle[], h: ServiceHistoryItem[]) => {
+      try { localStorage.setItem(storageKey, JSON.stringify({ vehicles: v, serviceHistory: h, savedAt: new Date().toISOString() })); }
+      catch (err) { console.warn('Local backup write failed', err); }
+    };
 
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        if (data.vehicles && Array.isArray(data.vehicles)) {
-          setVehicles(data.vehicles);
-          setSelectedVehicleId(prevId => {
-            if (!prevId || !data.vehicles.some((v: Vehicle) => v.id === prevId)) {
-              return data.vehicles.length > 0 ? data.vehicles[0].id : '';
-            }
-            return prevId;
-          });
-        } else {
-          setVehicles([]);
-          setSelectedVehicleId('');
-        }
-        if (data.serviceHistory && Array.isArray(data.serviceHistory)) {
-          setServiceHistory(data.serviceHistory);
-        }
+        const loadedVehicles = Array.isArray(data.vehicles) ? data.vehicles : [];
+        const loadedHistory = Array.isArray(data.serviceHistory) ? data.serviceHistory : [];
+        setVehicles(loadedVehicles);
+        setServiceHistory(loadedHistory);
+        setSelectedVehicleId(prevId => (!prevId || !loadedVehicles.some((v: Vehicle) => v.id === prevId)) ? (loadedVehicles[0]?.id || '') : prevId);
+        saveLocalBackup(loadedVehicles, loadedHistory);
       } else {
-        const initialVehicles: Vehicle[] = [];
-        setDoc(docRef, { vehicles: initialVehicles, serviceHistory: [] });
+        // Restore local backup before initializing an empty cloud document.
+        const local = loadLocalBackup();
+        const initialVehicles = local?.vehicles || [];
+        const initialHistory = local?.serviceHistory || [];
         setVehicles(initialVehicles);
-        setSelectedVehicleId('');
+        setServiceHistory(initialHistory);
+        setSelectedVehicleId(initialVehicles[0]?.id || '');
+        setDoc(docRef, { vehicles: initialVehicles, serviceHistory: initialHistory }).catch(err => console.error('Cloud initialization failed', err));
       }
       setIsCloudLoading(false);
     }, (error) => {
-      console.error("Firestore Listen Error:", error);
+      console.error('Firestore Listen Error:', error);
+      // Firestore unavailable: use local backup so refresh does not leave the app blank.
+      const local = loadLocalBackup();
+      if (local) {
+        setVehicles(local.vehicles);
+        setServiceHistory(local.serviceHistory);
+        setSelectedVehicleId(local.vehicles[0]?.id || '');
+      }
       setIsCloudLoading(false);
     });
 
@@ -389,14 +425,19 @@ function MainApp() {
 
   const saveToCloud = async (newVehicles: Vehicle[], newHistory: ServiceHistoryItem[]) => {
     if (!user) return;
+    // Save locally first for recovery after refresh, even when internet/cloud is unavailable.
+    try {
+      localStorage.setItem(getLocalStorageKey(user.uid), JSON.stringify({
+        vehicles: newVehicles, serviceHistory: newHistory, savedAt: new Date().toISOString()
+      }));
+    } catch (localErr) {
+      console.warn('Local backup write failed', localErr);
+    }
     try {
       const docRef = doc(db, 'deecar_users', user.uid);
-      await setDoc(docRef, {
-        vehicles: newVehicles,
-        serviceHistory: newHistory
-      });
+      await setDoc(docRef, { vehicles: newVehicles, serviceHistory: newHistory });
     } catch (e) {
-      console.error("Failed to save to cloud", e);
+      console.error('Failed to save to cloud. Local backup is available.', e);
     }
   };
 
@@ -414,7 +455,7 @@ function MainApp() {
   const vehicleType = currentVehicle?.vehicleType || 'car';
   const carInfo = currentVehicle?.carInfo || { brand: '', model: '', year: '' };
   const currentKm = currentVehicle?.currentKm || 0;
-  const currentDate = currentVehicle?.currentDate || new Date().toISOString().split('T')[0];
+  const currentDate = today;
   const items = currentVehicle?.items || [];
 
   const updateCurrentVehicle = (updatedFields: Partial<Vehicle>) => {
@@ -493,7 +534,7 @@ function MainApp() {
       return;
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalToday();
     const sourceGroupItems = newVehicleForm.vehicleType === 'motorcycle' 
       ? PRESET_MA_GROUPS.motorcycle.items 
       : PRESET_MA_GROUPS.car.items;
@@ -542,7 +583,7 @@ function MainApp() {
   };
 
   const handleSaveManagePresets = () => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalToday();
     const sourceGroupItems = vehicleType === 'motorcycle' ? PRESET_MA_GROUPS.motorcycle.items : PRESET_MA_GROUPS.car.items;
 
     const customItems = items.filter((i: MaItem) => !i.presetId);
@@ -1126,8 +1167,9 @@ function MainApp() {
                       <label className="text-[10px] text-slate-400 font-medium">วันที่ปัจจุบัน</label>
                       <input
                         type="date"
-                        value={currentDate}
-                        onChange={(e) => updateCurrentVehicle({ currentDate: e.target.value })}
+                        value={today}
+                        readOnly
+                        onChange={() => {}}}
                         className={`w-full mt-1 px-2.5 py-1 text-xs font-semibold rounded-lg border ${
                           isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'
                         }`}
