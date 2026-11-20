@@ -837,7 +837,7 @@ function MainApp() {
               <Car className="w-6 h-6" />
             </div>
             <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-              DEECAR GARAGE
+              DEECAR Tracker
             </h1>
             <p className="text-[11px] text-slate-400">ระบบเช็กลิสต์ระยะบำรุงรักษาและเอกสารรถยนต์ส่วนบุคคล</p>
           </div>
@@ -957,29 +957,29 @@ function MainApp() {
   }
 
   return (
-    <div className={`deecar3-root min-h-screen text-xs transition-colors duration-200 ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
+    <div className={`deecar-v3 min-h-screen text-xs transition-colors duration-200 ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
 
-      <style>{`        /* DEECAR 3.0 — Garage Control Center visual layer; data logic unchanged */
-        .deecar3-root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif!important;background:#070b10!important;color:#e8f0f7!important;background-image:radial-gradient(ellipse at 50% -15%,rgba(15,184,214,.18),transparent 45%),linear-gradient(180deg,#070b10,#0b1118)!important;}
-        .deecar3-root header{background:rgba(7,11,16,.88)!important;border-color:#1a2a36!important;box-shadow:0 10px 36px rgba(0,0,0,.3);backdrop-filter:blur(18px);}
-        .deecar3-root header h1{letter-spacing:.12em!important;text-transform:uppercase;}
-        .deecar3-root main{max-width:1480px!important;padding-top:24px!important;padding-bottom:54px!important;}
-        .deecar3-root main>div{border-radius:20px;}
-        .deecar3-root .bg-slate-900{background:#101923!important;}
-        .deecar3-root .bg-slate-950{background:#080d12!important;}
-        .deecar3-root .border-slate-800{border-color:#1e303e!important;}
-        .deecar3-root button{border-radius:12px!important;font-weight:650;transition:transform .16s ease,filter .16s ease,background .16s ease;}
-        .deecar3-root button:hover{transform:translateY(-1px);filter:brightness(1.1);}
-        .deecar3-root input,.deecar3-root select{border-radius:12px!important;outline:none!important;}
-        .deecar3-root input:focus,.deecar3-root select:focus{border-color:#18b8d5!important;box-shadow:0 0 0 3px rgba(24,184,213,.14);}
-        .deecar3-root .rounded-2xl{border-radius:20px!important;}
-        .deecar3-root .shadow-md{box-shadow:0 14px 38px rgba(0,0,0,.25)!important;}
-        .deecar3-root main>div.flex.border-b{border:1px solid #1e303e!important;border-radius:16px!important;padding:8px!important;background:rgba(13,20,28,.85)!important;gap:8px!important;}
-        .deecar3-root main>div.flex.border-b>button{flex:1;min-height:42px;padding:10px 14px!important;border:1px solid transparent!important;border-radius:12px!important;}
-        .deecar3-root main>div.flex.border-b>button[class*=bg-blue-600]{background:linear-gradient(135deg,#087f9c,#12aeca)!important;box-shadow:0 5px 20px rgba(8,166,201,.22)!important;}
-        .deecar3-root main .grid{gap:14px!important;}
-        .deecar3-root main .p-4.rounded-2xl{padding:18px!important;}
-        @media(max-width:640px){.deecar3-root main{padding:12px!important}.deecar3-root header>div{height:auto!important;min-height:62px;padding-top:8px;padding-bottom:8px;gap:8px;flex-wrap:wrap}.deecar3-root header>div>div:last-child{flex-wrap:wrap;justify-content:flex-end}.deecar3-root main button{min-height:42px}.deecar3-root main input,.deecar3-root main select{font-size:16px!important}.deecar3-root main>div.flex.border-b{display:grid!important;grid-template-columns:1fr 1fr!important}.deecar3-root main>div.flex.border-b>button{white-space:normal!important;justify-content:center;text-align:center;min-height:54px;}}
+      <style>{`
+        /* DEECAR 3.0 — Garage UI refresh */
+        :root { color-scheme: dark; }
+        body { background:#070b10 !important; }
+        .deecar-v3 { background:#070b10 !important; color:#e6edf5 !important; }
+        .deecar-v3 header { background:rgba(8,13,20,.92) !important; border-color:#1d2936 !important; }
+        .deecar-v3 header > div { max-width:1440px !important; height:auto !important; min-height:76px; padding-top:12px !important; padding-bottom:12px !important; }
+        .deecar-v3 main { max-width:1440px !important; padding:24px 22px !important; gap:22px !important; }
+        .deecar-v3 main > div:first-child { border-radius:22px !important; background:linear-gradient(140deg,#121c27,#0d141d) !important; border:1px solid #253443 !important; box-shadow:0 12px 36px #0003 !important; padding:22px !important; }
+        .deecar-v3 main > div.flex.border-b { border:0 !important; display:flex !important; flex-wrap:wrap !important; gap:10px !important; padding:0 !important; }
+        .deecar-v3 main > div.flex.border-b button { border:1px solid #243343 !important; background:#111a24 !important; border-radius:14px !important; padding:12px 16px !important; color:#9eb0c3 !important; flex:none !important; }
+        .deecar-v3 main > div.flex.border-b button[class*=bg-blue-600] { background:linear-gradient(135deg,#0e9eb6,#087f9d) !important; border-color:#15b8d4 !important; color:#fff !important; box-shadow:0 6px 18px #06b6d433 !important; }
+        .deecar-v3 main h2 { font-size:19px !important; letter-spacing:-.02em; }
+        .deecar-v3 main .grid > div { border-radius:20px !important; border-color:#263646 !important; background:linear-gradient(145deg,#121c27,#0e151e) !important; box-shadow:0 8px 24px #0002; }
+        .deecar-v3 main button { border-radius:12px !important; }
+        .deecar-v3 input,.deecar-v3 select { background:#131e2a !important; border-color:#2b3b4c !important; color:#e8f2fb !important; border-radius:11px !important; }
+        .deecar-v3 main .rounded-full { box-shadow:none; }
+        .deecar-v3 main [class*=rose-950] { background:#281722 !important; border-color:#613044 !important; }
+        .deecar-v3 main [class*=amber-950] { background:#292317 !important; border-color:#594523 !important; }
+        .deecar-v3 main [class*=emerald-950] { background:#132721 !important; border-color:#245242 !important; }
+        @media(max-width:700px){ .deecar-v3 main { padding:12px !important; } .deecar-v3 main > div:first-child { padding:14px !important; } .deecar-v3 header > div { gap:10px !important; } }
       `}</style>
       
       {/* Header Bar */}
@@ -992,13 +992,13 @@ function MainApp() {
             <div>
               <div className="flex items-center gap-1.5">
                 <h1 className="font-bold text-sm tracking-wide bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-                  DEECAR GARAGE
+                  DEECAR Tracker
                 </h1>
                 <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
                   <Cloud className="w-2.5 h-2.5" /> Online
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400">VEHICLE CARE • MAINTENANCE • SERVICE HISTORY</p>
+              <p className="text-[10px] text-slate-400">ระบบเช็กลิสต์ระยะบำรุงรักษาและต่อเอกสารยานพาหนะ</p>
             </div>
           </div>
 
