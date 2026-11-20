@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, Component, type ErrorInfo, type ReactNode } from 'react';
+import React, { useState, useEffect, useMemo, useRef, Component, type ErrorInfo, type ReactNode } from 'react';
 import { 
   Wrench, 
   Car, 
@@ -326,6 +326,7 @@ function MainApp() {
   const [serviceHistory, setServiceHistory] = useState<ServiceHistoryItem[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
   const [isCloudLoading, setIsCloudLoading] = useState<boolean>(true);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   const [activeTab, setActiveTab] = useState('garage');
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -391,26 +392,49 @@ function MainApp() {
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        const loadedVehicles = Array.isArray(data.vehicles) ? data.vehicles : [];
-        const loadedHistory = Array.isArray(data.serviceHistory) ? data.serviceHistory : [];
+        const cloudVehicles = Array.isArray(data.vehicles) ? data.vehicles : [];
+        const cloudHistory = Array.isArray(data.serviceHistory) ? data.serviceHistory : [];
+        const local = loadLocalBackup();
+
+        // Never let an empty cloud document silently erase a non-empty local recovery copy.
+        const shouldRestoreLocal = cloudVehicles.length === 0 && !!local && local.vehicles.length > 0;
+        const loadedVehicles = shouldRestoreLocal ? local!.vehicles : cloudVehicles;
+        const loadedHistory = shouldRestoreLocal ? local!.serviceHistory : cloudHistory;
+
         setVehicles(loadedVehicles);
         setServiceHistory(loadedHistory);
-        setSelectedVehicleId(prevId => (!prevId || !loadedVehicles.some((v: Vehicle) => v.id === prevId)) ? (loadedVehicles[0]?.id || '') : prevId);
-        saveLocalBackup(loadedVehicles, loadedHistory);
+        setSelectedVehicleId(prevId =>
+          (!prevId || !loadedVehicles.some((v: Vehicle) => v.id === prevId))
+            ? (loadedVehicles[0]?.id || '')
+            : prevId
+        );
+
+        if (shouldRestoreLocal) {
+          saveLocalBackup(loadedVehicles, loadedHistory);
+          setDoc(docRef, {
+            vehicles: loadedVehicles,
+            serviceHistory: loadedHistory,
+            updatedAt: new Date().toISOString()
+          }).catch(err => console.error('Cloud recovery write failed', err));
+        } else {
+          saveLocalBackup(loadedVehicles, loadedHistory);
+        }
       } else {
-        // Restore local backup before initializing an empty cloud document.
         const local = loadLocalBackup();
         const initialVehicles = local?.vehicles || [];
         const initialHistory = local?.serviceHistory || [];
         setVehicles(initialVehicles);
         setServiceHistory(initialHistory);
         setSelectedVehicleId(initialVehicles[0]?.id || '');
-        setDoc(docRef, { vehicles: initialVehicles, serviceHistory: initialHistory }).catch(err => console.error('Cloud initialization failed', err));
+        setDoc(docRef, {
+          vehicles: initialVehicles,
+          serviceHistory: initialHistory,
+          updatedAt: new Date().toISOString()
+        }).catch(err => console.error('Cloud initialization failed', err));
       }
       setIsCloudLoading(false);
     }, (error) => {
       console.error('Firestore Listen Error:', error);
-      // Firestore unavailable: use local backup so refresh does not leave the app blank.
       const local = loadLocalBackup();
       if (local) {
         setVehicles(local.vehicles);
@@ -425,19 +449,33 @@ function MainApp() {
 
   const saveToCloud = async (newVehicles: Vehicle[], newHistory: ServiceHistoryItem[]) => {
     if (!user) return;
-    // Save locally first for recovery after refresh, even when internet/cloud is unavailable.
+
+    const payload = {
+      vehicles: newVehicles,
+      serviceHistory: newHistory,
+      updatedAt: new Date().toISOString()
+    };
+
     try {
       localStorage.setItem(getLocalStorageKey(user.uid), JSON.stringify({
-        vehicles: newVehicles, serviceHistory: newHistory, savedAt: new Date().toISOString()
+        vehicles: newVehicles,
+        serviceHistory: newHistory,
+        savedAt: payload.updatedAt
       }));
-    } catch (localErr) {
-      console.warn('Local backup write failed', localErr);
+    } catch (localError) {
+      console.error('Local backup write failed', localError);
     }
+
+    saveQueueRef.current = saveQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        await setDoc(doc(db, 'deecar_users', user.uid), payload);
+      });
+
     try {
-      const docRef = doc(db, 'deecar_users', user.uid);
-      await setDoc(docRef, { vehicles: newVehicles, serviceHistory: newHistory });
-    } catch (e) {
-      console.error('Failed to save to cloud. Local backup is available.', e);
+      await saveQueueRef.current;
+    } catch (cloudError) {
+      console.error('Failed to save to Cloud. Local backup remains available.', cloudError);
     }
   };
 
@@ -1169,7 +1207,7 @@ function MainApp() {
                         type="date"
                         value={today}
                         readOnly
-                        onChange={() => {}}}
+                        onChange={() => {}}
                         className={`w-full mt-1 px-2.5 py-1 text-xs font-semibold rounded-lg border ${
                           isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'
                         }`}
