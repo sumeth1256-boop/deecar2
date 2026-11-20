@@ -1105,7 +1105,37 @@ function MainApp() {
           .deecar-shell main .overflow-x-auto { max-width: 100%; }
           .deecar-shell main .flex { min-width: 0; }
           .deecar-shell main .whitespace-nowrap { white-space: normal; }
-        }\n      `}</style>
+        }\n
+        /* DEECAR 2.0 visual refresh — styling only, data logic unchanged */
+        .deecar-shell { background-image: radial-gradient(ellipse at 15% 0%, rgba(14,165,233,.10), transparent 35%), radial-gradient(ellipse at 90% 15%, rgba(59,130,246,.07), transparent 28%); }
+        .deecar-shell header { border-color: rgba(51,65,85,.55) !important; box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+        .deecar-shell header > div { min-height: 68px; }
+        .deecar-shell main { padding-top: 18px !important; padding-bottom: 28px !important; }
+        .deecar-shell main > div:not(.flex.border-b) { border-radius: 18px; }
+        .deecar-shell main .rounded-2xl { border-radius: 20px !important; }
+        .deecar-shell main .shadow-md, .deecar-shell main .shadow-xl { box-shadow: 0 10px 30px rgba(0,0,0,.12) !important; }
+        .deecar-shell button { border-radius: 12px; font-weight: 650; }
+        .deecar-shell button:active { transform: scale(.985); }
+        .deecar-shell input, .deecar-shell select { border-radius: 12px !important; }
+        .deecar-shell .bg-blue-600 { background-color: #0284c7 !important; }
+        .deecar-shell .hover\:bg-blue-500:hover { background-color: #0ea5e9 !important; }
+        @media (min-width: 641px) {
+          .deecar-shell main { padding-left: 24px !important; padding-right: 24px !important; }
+          .deecar-shell main .grid { gap: 16px; }
+        }
+        @media (max-width: 640px) {
+          .deecar-shell { background-image: radial-gradient(ellipse at 50% 0%, rgba(14,165,233,.10), transparent 45%); }
+          .deecar-shell header { position: sticky; }
+          .deecar-shell header > div { min-height: 58px; gap: 8px; }
+          .deecar-shell main { padding-top: 10px !important; padding-bottom: 18px !important; }
+          .deecar-shell main .rounded-2xl { border-radius: 16px !important; }
+          .deecar-shell main > div.flex.border-b { background: rgba(15,23,42,.45); border: 1px solid rgba(51,65,85,.5); border-radius: 16px; padding: 6px; gap: 6px; }
+          .deecar-shell main > div.flex.border-b > button { flex: 1 1 calc(50% - 6px); min-height: 44px; border-radius: 12px; }
+          .deecar-shell button, .deecar-shell label { min-height: 42px; }
+          .deecar-shell main .p-4 { padding: 12px !important; }
+          .deecar-shell main .text-base { font-size: 16px !important; }
+        }
+      `}</style>
       {/* Header Bar */}
       <header className={`border-b sticky top-0 z-30 backdrop-blur-md ${isDarkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white/80 border-slate-200'}`}>
         <div className="max-w-6xl mx-auto px-3 sm:px-4 min-h-14 py-2 flex items-center justify-between gap-2">
