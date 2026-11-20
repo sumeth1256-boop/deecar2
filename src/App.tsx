@@ -146,6 +146,14 @@ interface ServiceHistoryItem {
   servicedKm: number;
   servicedDate: string;
   note: string;
+  recordType?: 'service' | 'odometer';
+  vehicleId?: string;
+  previousKm?: number;
+  previousLastKm?: number;
+  previousLastDate?: string;
+  reverted?: boolean;
+  revertedAt?: string;
+  createdAt?: string;
 }
 
 // ============================================================================
@@ -510,19 +518,78 @@ function MainApp() {
 
   const handleConfirmUpdateKm = () => {
     if (!currentVehicle) return;
-    const newKmNum = Math.max(0, Number(tempKmInput) || 0);
-
+    const newKmNum = Math.max(0, Math.floor(Number(tempKmInput) || 0));
     if (newKmNum === currentKm) return;
-
-    const isConfirmed = window.confirm(
-      `คุณต้องการบันทึกเลขไมล์ใหม่ของ "${carInfo.brand} ${carInfo.model}" เป็น ${newKmNum.toLocaleString()} กม. ใช่หรือไม่?`
-    );
-
-    if (isConfirmed) {
-      updateCurrentVehicle({ currentKm: newKmNum });
-    } else {
+    if (newKmNum < currentKm) {
+      window.alert('เลขไมล์ใหม่ต่ำกว่าเลขไมล์ปัจจุบัน หากต้องการแก้ไขเลขไมล์ย้อนหลัง กรุณาตรวจสอบข้อมูลก่อน');
       setTempKmInput(String(currentKm));
+      return;
     }
+    const isConfirmed = window.confirm(`บันทึกเลขไมล์ ${newKmNum.toLocaleString()} กม. ของ ${carInfo.brand} ${carInfo.model} ใช่หรือไม่?`);
+    if (!isConfirmed) {
+      setTempKmInput(String(currentKm));
+      return;
+    }
+    const historyEntry: ServiceHistoryItem = {
+      id: `odo-${Date.now()}`,
+      carName: `${carInfo.brand} ${carInfo.model}`.trim(),
+      itemId: `odometer-${currentVehicle.id}`,
+      itemName: 'อัปเดตเลขไมล์ (Odometer)',
+      servicedKm: newKmNum,
+      servicedDate: today,
+      note: `เลขไมล์เดิม ${currentKm.toLocaleString()} กม. → ${newKmNum.toLocaleString()} กม.`,
+      recordType: 'odometer',
+      vehicleId: currentVehicle.id,
+      previousKm: currentKm,
+      createdAt: new Date().toISOString()
+    };
+    const updatedVehicles = vehicles.map(v => v.id === currentVehicle.id ? { ...v, currentKm: newKmNum, currentDate: today } : v);
+    const updatedHistory = [historyEntry, ...serviceHistory];
+    setVehicles(updatedVehicles);
+    setServiceHistory(updatedHistory);
+    setTempKmInput(String(newKmNum));
+    saveToCloud(updatedVehicles, updatedHistory);
+  };
+
+  const handleRevertHistory = (historyItem: ServiceHistoryItem) => {
+    if (historyItem.reverted) return;
+    const isOdometer = historyItem.recordType === 'odometer';
+    const confirmText = isOdometer
+      ? `ย้อนเลขไมล์จาก ${historyItem.servicedKm.toLocaleString()} กลับเป็น ${Number(historyItem.previousKm || 0).toLocaleString()} กม. ใช่หรือไม่?`
+      : `ย้อนรายการ "${historyItem.itemName}" ของ ${historyItem.carName} ใช่หรือไม่?`;
+    if (!window.confirm(confirmText)) return;
+
+    let updatedVehicles = vehicles;
+    if (isOdometer && historyItem.vehicleId) {
+      const target = vehicles.find(v => v.id === historyItem.vehicleId);
+      // Prevent old odometer records from overwriting a newer current reading.
+      if (target && target.currentKm === historyItem.servicedKm) {
+        updatedVehicles = vehicles.map(v => v.id === historyItem.vehicleId ? { ...v, currentKm: Number(historyItem.previousKm || 0) } : v);
+      } else if (target) {
+        alert('ไม่สามารถคืนเลขไมล์อัตโนมัติได้ เนื่องจากมีการบันทึกเลขไมล์ใหม่หลังรายการนี้ กรุณาตรวจสอบเลขไมล์ด้วยตนเอง');
+        return;
+      }
+    } else if ((historyItem.vehicleId || vehicles.find(v => `${v.carInfo?.brand} ${v.carInfo?.model}`.trim() === historyItem.carName)?.id) && historyItem.itemId) {
+      // Only restore the MA item's previous state when this history entry has a snapshot.
+      // Older records don't contain snapshots, so mark them reverted without clearing current data.
+      if (historyItem.previousLastKm !== undefined || historyItem.previousLastDate !== undefined) {
+        const targetVehicleId = historyItem.vehicleId || vehicles.find(v => `${v.carInfo?.brand} ${v.carInfo?.model}`.trim() === historyItem.carName)?.id;
+        updatedVehicles = vehicles.map(v => {
+          if (v.id !== targetVehicleId) return v;
+          return { ...v, items: (v.items || []).map(item => item.id === historyItem.itemId ? { ...item, lastKm: historyItem.previousLastKm, lastDate: historyItem.previousLastDate } : item) };
+        });
+      } else {
+        alert('รายการประวัติเก่านี้ไม่มี snapshot ของสถานะก่อนบันทึก จึงจะทำเครื่องหมาย Reverted โดยไม่เปลี่ยนสถานะ MA ปัจจุบัน');
+      }
+    }
+    const updatedHistory = serviceHistory.map(h => h.id === historyItem.id ? { ...h, reverted: true, revertedAt: new Date().toISOString() } : h);
+    setVehicles(updatedVehicles);
+    setServiceHistory(updatedHistory);
+    if (currentVehicle) {
+      const updatedCurrent = updatedVehicles.find(v => v.id === currentVehicle.id);
+      if (updatedCurrent) setTempKmInput(String(updatedCurrent.currentKm || 0));
+    }
+    saveToCloud(updatedVehicles, updatedHistory);
   };
 
   const currentVehicleEvaluatedItems = useMemo(() => {
@@ -691,7 +758,12 @@ function MainApp() {
       itemName: item.name,
       servicedKm: currentKm,
       servicedDate: currentDate,
-      note: 'บำรุงรักษา/ต่ออายุเรียบร้อย'
+      note: 'บำรุงรักษา/ต่ออายุเรียบร้อย',
+      recordType: 'service',
+      vehicleId: currentVehicle.id,
+      previousLastKm: item.lastKm,
+      previousLastDate: item.lastDate,
+      createdAt: new Date().toISOString()
     };
 
     const updatedHistory = [historyEntry, ...serviceHistory];
@@ -995,11 +1067,11 @@ function MainApp() {
   }
 
   return (
-    <div className={`min-h-screen text-xs transition-colors duration-200 ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
-      
+    <div className={`deecar-shell min-h-screen text-xs transition-colors duration-200 ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
+      <style>{`\n        .deecar-shell button,.deecar-shell input,.deecar-shell select { -webkit-tap-highlight-color: transparent; }\n        .deecar-shell button { transition: transform .15s ease, background-color .15s ease, border-color .15s ease; }\n        @media (max-width: 640px) { .deecar-shell main { padding-left: 12px !important; padding-right: 12px !important; } .deecar-shell header > div { padding-left: 12px !important; padding-right: 12px !important; } .deecar-shell input,.deecar-shell select { font-size: 16px !important; } .deecar-shell button { min-height: 40px; } }\n      `}</style>
       {/* Header Bar */}
       <header className={`border-b sticky top-0 z-30 backdrop-blur-md ${isDarkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white/80 border-slate-200'}`}>
-        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 min-h-14 py-2 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5">
             <div className="bg-gradient-to-tr from-blue-600 to-indigo-500 p-2 rounded-xl shadow-sm text-white">
               <Car className="w-4 h-4" />
@@ -1070,7 +1142,7 @@ function MainApp() {
       </header>
 
       {/* Main Container */}
-      <main className="max-w-6xl mx-auto px-4 py-4 space-y-4">
+      <main className="max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-5 space-y-3 sm:space-y-5">
 
         {isCloudLoading ? (
           <div className="p-10 text-center text-slate-400 space-y-2">
@@ -1177,22 +1249,33 @@ function MainApp() {
                       <Gauge className="w-5 h-5" />
                     </div>
                     <div className="flex-1">
-                      <label className="text-[10px] text-slate-400 font-medium flex justify-between">
-                        <span>เลขไมล์ปัจจุบัน (คลิกออกนอกช่องเพื่อบันทึก)</span>
+                      <label className="text-[10px] sm:text-xs text-slate-400 font-medium flex flex-wrap justify-between gap-1">
+                        <span>เลขไมล์ปัจจุบัน</span>
                         <span className="text-emerald-400 font-mono">Odometer</span>
                       </label>
-                      <div className="relative mt-1">
-                        <input
-                          type="number"
-                          value={tempKmInput}
-                          onChange={(e) => setTempKmInput(e.target.value)}
-                          onBlur={handleConfirmUpdateKm}
-                          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                          className={`w-full px-2.5 py-1 text-sm font-mono font-bold rounded-lg border ${
-                            isDarkMode ? 'bg-slate-800 border-slate-700 text-emerald-400' : 'bg-slate-50 border-slate-300 text-emerald-600'
-                          }`}
-                        />
-                        <span className="absolute right-2.5 top-1.5 text-[11px] text-slate-400">กม.</span>
+                      <div className="mt-1 flex flex-col sm:flex-row gap-2">
+                        <div className="relative flex-1 min-w-0">
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            value={tempKmInput}
+                            onChange={(e) => setTempKmInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmUpdateKm(); }}
+                            className={`w-full min-h-11 px-3 pr-12 text-base sm:text-sm font-mono font-bold rounded-xl border focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
+                              isDarkMode ? 'bg-slate-800 border-slate-700 text-emerald-400' : 'bg-slate-50 border-slate-300 text-emerald-600'
+                            }`}
+                          />
+                          <span className="absolute right-3 top-3 text-xs text-slate-400">กม.</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleConfirmUpdateKm}
+                          disabled={!tempKmInput || Number(tempKmInput) === currentKm}
+                          className="min-h-11 sm:min-h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm whitespace-nowrap"
+                        >
+                          <CheckCircle2 className="w-4 h-4" /> บันทึกเลขไมล์
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1792,8 +1875,8 @@ function MainApp() {
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h2 className="text-sm font-bold">ประวัติการบันทึกการบำรุงรักษา/ต่อเอกสารทั้งหมด</h2>
-                    <p className="text-[10px] text-slate-400">ประวัติการกด Reset เช็กลิสต์และต่อเอกสารของรถทุกคันในระบบ</p>
+                    <h2 className="text-base sm:text-lg font-bold">ประวัติการเปลี่ยนแปลงทั้งหมด</h2>
+                    <p className="text-xs text-slate-400">รายการ Service, ต่อเอกสาร และการอัปเดตเลขไมล์ พร้อมย้อนกลับได้</p>
                   </div>
 
                   {serviceHistory.length > 0 && (
@@ -1819,20 +1902,26 @@ function MainApp() {
                   ) : (
                     <div className="divide-y divide-slate-800/40">
                       {serviceHistory.map((h: ServiceHistoryItem) => (
-                        <div key={h.id} className="p-3 flex items-center justify-between">
-                          <div className="flex items-center gap-2.5">
-                            <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl">
-                              <CheckCircle2 className="w-4 h-4" />
+                        <div key={h.id} className={`p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 transition-colors ${h.reverted ? 'opacity-60' : 'hover:bg-slate-800/30'}`}>
+                          <div className="flex items-start gap-3 min-w-0 flex-1">
+                            <div className={`p-2.5 rounded-xl shrink-0 ${h.reverted ? 'bg-amber-500/10 text-amber-400' : h.recordType === 'odometer' ? 'bg-blue-500/10 text-blue-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                              {h.reverted ? <RotateCcw className="w-4 h-4" /> : h.recordType === 'odometer' ? <Gauge className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
                             </div>
-                            <div>
-                              <p className="font-semibold text-xs">{h.itemName} <span className="text-[10px] text-blue-400 font-normal">({h.carName})</span></p>
-                              <p className="text-[10px] text-slate-400">{h.note}</p>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-sm leading-snug break-words">{h.itemName} <span className="text-xs text-blue-400 font-normal">({h.carName})</span></p>
+                              <p className="text-xs text-slate-400 mt-1 break-words">{h.note}</p>
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                <span className={`px-2 py-1 rounded-full text-[10px] font-semibold ${h.recordType === 'odometer' ? 'bg-blue-500/10 text-blue-400' : 'bg-emerald-500/10 text-emerald-400'}`}>{h.recordType === 'odometer' ? 'Odometer Update' : 'Service Record'}</span>
+                                {h.reverted && <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 text-[10px] font-semibold">Reverted</span>}
+                              </div>
                             </div>
                           </div>
-
-                          <div className="text-right font-mono text-[11px]">
-                            <p className="text-emerald-400 font-bold">{h.servicedKm?.toLocaleString()} กม.</p>
-                            <p className="text-slate-400 text-[10px]">{h.servicedDate}</p>
+                          <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 sm:shrink-0">
+                            <div className="text-left sm:text-right font-mono text-xs">
+                              <p className={`font-bold ${h.reverted ? 'text-amber-400' : 'text-emerald-400'}`}>{h.servicedKm?.toLocaleString()} กม.</p>
+                              <p className="text-slate-400 text-[11px]">{h.servicedDate}</p>
+                            </div>
+                            {!h.reverted && <button type="button" onClick={() => handleRevertHistory(h)} className="min-h-10 px-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 font-semibold text-xs inline-flex items-center gap-1.5 whitespace-nowrap"><RotateCcw className="w-3.5 h-3.5" /> Revert</button>}
                           </div>
                         </div>
                       ))}
