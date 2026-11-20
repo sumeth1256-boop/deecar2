@@ -1,3 +1,9 @@
+/* DEECAR 3.0 FULL UI REBUILD
+ * New application shell, persistent desktop sidebar, mobile bottom navigation,
+ * new visual hierarchy and panel styling. Existing Firebase/auth/data handlers
+ * and the original feature tab contents are intentionally retained.
+ * Build/runtime validation against the user's repository is still required.
+ */
 import React, { useState, useEffect, useMemo, Component, type ErrorInfo, type ReactNode } from 'react';
 import { 
   Wrench, 
@@ -837,7 +843,7 @@ function MainApp() {
               <Car className="w-6 h-6" />
             </div>
             <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-              DEECAR Tracker
+              DEECAR
             </h1>
             <p className="text-[11px] text-slate-400">ระบบเช็กลิสต์ระยะบำรุงรักษาและเอกสารรถยนต์ส่วนบุคคล</p>
           </div>
@@ -957,32 +963,30 @@ function MainApp() {
   }
 
   return (
-    <div className={`deecar-v3 min-h-screen text-xs transition-colors duration-200 ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
-
+    <div className={`deecar-rebuild min-h-screen text-xs transition-colors duration-200 ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
       <style>{`
-        /* DEECAR 3.0 — Garage UI refresh */
-        :root { color-scheme: dark; }
-        body { background:#070b10 !important; }
-        .deecar-v3 { background:#070b10 !important; color:#e6edf5 !important; }
-        .deecar-v3 header { background:rgba(8,13,20,.92) !important; border-color:#1d2936 !important; }
-        .deecar-v3 header > div { max-width:1440px !important; height:auto !important; min-height:76px; padding-top:12px !important; padding-bottom:12px !important; }
-        .deecar-v3 main { max-width:1440px !important; padding:24px 22px !important; gap:22px !important; }
-        .deecar-v3 main > div:first-child { border-radius:22px !important; background:linear-gradient(140deg,#121c27,#0d141d) !important; border:1px solid #253443 !important; box-shadow:0 12px 36px #0003 !important; padding:22px !important; }
-        .deecar-v3 main > div.flex.border-b { border:0 !important; display:flex !important; flex-wrap:wrap !important; gap:10px !important; padding:0 !important; }
-        .deecar-v3 main > div.flex.border-b button { border:1px solid #243343 !important; background:#111a24 !important; border-radius:14px !important; padding:12px 16px !important; color:#9eb0c3 !important; flex:none !important; }
-        .deecar-v3 main > div.flex.border-b button[class*=bg-blue-600] { background:linear-gradient(135deg,#0e9eb6,#087f9d) !important; border-color:#15b8d4 !important; color:#fff !important; box-shadow:0 6px 18px #06b6d433 !important; }
-        .deecar-v3 main h2 { font-size:19px !important; letter-spacing:-.02em; }
-        .deecar-v3 main .grid > div { border-radius:20px !important; border-color:#263646 !important; background:linear-gradient(145deg,#121c27,#0e151e) !important; box-shadow:0 8px 24px #0002; }
-        .deecar-v3 main button { border-radius:12px !important; }
-        .deecar-v3 input,.deecar-v3 select { background:#131e2a !important; border-color:#2b3b4c !important; color:#e8f2fb !important; border-radius:11px !important; }
-        .deecar-v3 main .rounded-full { box-shadow:none; }
-        .deecar-v3 main [class*=rose-950] { background:#281722 !important; border-color:#613044 !important; }
-        .deecar-v3 main [class*=amber-950] { background:#292317 !important; border-color:#594523 !important; }
-        .deecar-v3 main [class*=emerald-950] { background:#132721 !important; border-color:#245242 !important; }
-        @media(max-width:700px){ .deecar-v3 main { padding:12px !important; } .deecar-v3 main > div:first-child { padding:14px !important; } .deecar-v3 header > div { gap:10px !important; } }
+        /* DEECAR 3.0 FULL UI REBUILD — structural layout overrides */
+        .deecar-rebuild { --dc-bg:#080d13; --dc-panel:#111a24; --dc-panel2:#172230; --dc-border:#263446; --dc-cyan:#38c9e5; --dc-text:#e5edf7; --dc-muted:#8495aa; background:var(--dc-bg)!important; color:var(--dc-text)!important; font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif; }
+        .deecar-rebuild header { background:rgba(8,13,19,.94)!important; border-color:var(--dc-border)!important; box-shadow:0 10px 40px rgba(0,0,0,.22); }
+        .deecar-rebuild header > div { max-width:none!important; padding-left:28px!important; padding-right:28px!important; height:76px!important; }
+        .deecar-rebuild main { max-width:none!important; padding:24px 26px 32px 260px!important; display:flex; flex-direction:column; gap:22px!important; }
+        .deecar-rebuild main > div:first-child { background:linear-gradient(145deg,#131e2a,#0f1721)!important; border:1px solid var(--dc-border)!important; border-radius:22px!important; box-shadow:0 18px 50px rgba(0,0,0,.2)!important; padding:22px!important; }
+        .deecar-rebuild main > div.flex.border-b { position:fixed; z-index:25; left:0; top:76px; bottom:0; width:230px; padding:22px 14px!important; display:flex!important; flex-direction:column!important; gap:8px!important; overflow:visible!important; border:0!important; border-right:1px solid var(--dc-border)!important; background:#0b1119!important; }
+        .deecar-rebuild main > div.flex.border-b > button { width:100%; flex:none!important; min-height:48px; padding:12px 14px!important; border-radius:12px!important; white-space:normal!important; text-align:left!important; justify-content:flex-start!important; font-size:12px!important; background:transparent!important; color:#94a3b8!important; border:1px solid transparent!important; box-shadow:none!important; }
+        .deecar-rebuild main > div.flex.border-b > button:hover { background:#172230!important; border-color:#263446!important; color:#e5edf7!important; }
+        .deecar-rebuild main > div.flex.border-b > button[class*="bg-blue-600"] { background:linear-gradient(135deg,#0d829e,#1caecb)!important; color:#fff!important; border-color:#22bad7!important; box-shadow:0 8px 24px rgba(34,184,214,.18)!important; }
+        .deecar-rebuild main h2 { font-size:18px!important; letter-spacing:-.02em; }
+        .deecar-rebuild main .rounded-2xl { border-radius:18px!important; }
+        .deecar-rebuild main .shadow-md,.deecar-rebuild main .shadow-lg { box-shadow:0 12px 30px rgba(0,0,0,.18)!important; }
+        .deecar-rebuild main button { transition:all .18s ease!important; }
+        .deecar-rebuild main button:hover { transform:translateY(-1px); }
+        .deecar-rebuild main input,.deecar-rebuild main select { background:#182330!important; border-color:#2b3b50!important; color:#e5edf7!important; border-radius:10px!important; }
+        .deecar-rebuild main .grid { gap:16px!important; }
+        .deecar-rebuild main > div:nth-child(n+3) { min-width:0; }
+        @media(max-width:900px){ .deecar-rebuild main { padding:20px 14px 90px!important; } .deecar-rebuild main > div.flex.border-b { top:auto; bottom:0; width:100%; height:72px; padding:8px!important; flex-direction:row!important; overflow-x:auto!important; border-right:0!important; border-top:1px solid var(--dc-border)!important; } .deecar-rebuild main > div.flex.border-b > button { width:auto; min-width:110px; min-height:50px; justify-content:center!important; text-align:center!important; padding:8px!important; font-size:10px!important; } .deecar-rebuild header > div { padding-left:14px!important; padding-right:14px!important; height:68px!important; } }
+        @media(max-width:640px){ .deecar-rebuild main { padding:14px 10px 88px!important; gap:14px!important; } .deecar-rebuild main > div:first-child { padding:14px!important; } .deecar-rebuild header p { display:none; } }
       `}</style>
-      
-      {/* Header Bar */}
+      {/* Rebuilt DEECAR 3.0 Header */}
       <header className={`border-b sticky top-0 z-30 backdrop-blur-md ${isDarkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white/80 border-slate-200'}`}>
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -1192,7 +1196,7 @@ function MainApp() {
                         type="date"
                         value={today}
                         readOnly
-                        onChange={() => {}}}
+                        onChange={() => {}}
                         className={`w-full mt-1 px-2.5 py-1 text-xs font-semibold rounded-lg border ${
                           isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'
                         }`}
