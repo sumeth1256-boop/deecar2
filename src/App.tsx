@@ -1,3 +1,5 @@
+/* DEECAR 3.0 visual rebuild (UI layer only).
+   Vehicle, MA, history, Firebase/Auth, backup and sync logic are preserved from source. */
 import React, { useState, useEffect, useMemo, useRef, Component, type ErrorInfo, type ReactNode } from 'react';
 import { 
   Wrench, 
@@ -964,7 +966,7 @@ function MainApp() {
               <Car className="w-6 h-6" />
             </div>
             <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-              DEECAR Tracker
+              DEECAR
             </h1>
             <p className="text-[11px] text-slate-400">ระบบเช็กลิสต์ระยะบำรุงรักษาและเอกสารรถยนต์ส่วนบุคคล</p>
           </div>
@@ -1106,7 +1108,48 @@ function MainApp() {
           .deecar-shell main .flex { min-width: 0; }
           .deecar-shell main .whitespace-nowrap { white-space: normal; }
         }\n
-        /* DEECAR 2.0 visual refresh — styling only, data logic unchanged */
+        /* DEECAR 3.0 — full visual overhaul: automotive control-center design */
+        .deecar-shell { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; background: #080c12 !important; color: #e8edf5; background-image: radial-gradient(ellipse at 50% -10%, rgba(34,211,238,.16), transparent 38%), linear-gradient(180deg,#080c12 0%,#0b111a 100%) !important; }
+        .deecar-shell header { background: rgba(8,12,18,.88) !important; border-bottom: 1px solid rgba(148,163,184,.12) !important; box-shadow: 0 18px 50px rgba(0,0,0,.24) !important; }
+        .deecar-shell header > div { max-width: 1440px !important; min-height: 76px !important; }
+        .deecar-shell header h1 { font-size: 19px !important; letter-spacing: .12em !important; font-weight: 900 !important; }
+        .deecar-shell header h1::before { content: "MOBILITY / MAINTENANCE"; display:block; font-size:8px; letter-spacing:.22em; color:#64748b; margin-bottom:3px; font-weight:700; }
+        .deecar-shell main { max-width: 1440px !important; padding: 28px 26px 60px !important; gap: 22px !important; }
+        .deecar-shell main > div:not(.flex.border-b) { border-radius: 24px !important; border-color: rgba(148,163,184,.14) !important; box-shadow: 0 24px 60px rgba(0,0,0,.18) !important; }
+        .deecar-shell main .rounded-2xl { border-radius: 22px !important; }
+        .deecar-shell main .rounded-xl { border-radius: 16px !important; }
+        .deecar-shell main .shadow-md,.deecar-shell main .shadow-xl { box-shadow: 0 18px 45px rgba(0,0,0,.18) !important; }
+        .deecar-shell main .bg-slate-900 { background-color: #111923 !important; }
+        .deecar-shell main .bg-slate-800 { background-color: #172230 !important; }
+        .deecar-shell main .border-slate-700,.deecar-shell main .border-slate-800 { border-color: rgba(148,163,184,.14) !important; }
+        .deecar-shell main .bg-blue-600 { background: linear-gradient(135deg,#0891b2,#06b6d4) !important; }
+        .deecar-shell main button { font-weight: 700; letter-spacing: -.01em; border-radius: 14px !important; }
+        .deecar-shell main button:hover { filter: brightness(1.08); }
+        .deecar-shell main button:active { transform: translateY(1px) scale(.99); }
+        .deecar-shell main input,.deecar-shell main select { background-color:#0d1520 !important; border-color:rgba(148,163,184,.18) !important; color:#f1f5f9 !important; border-radius:14px !important; }
+        .deecar-shell main input:focus,.deecar-shell main select:focus { outline:none; border-color:rgba(34,211,238,.6) !important; box-shadow:0 0 0 3px rgba(34,211,238,.12) !important; }
+        .deecar-shell main label { color:#94a3b8; }
+        .deecar-shell main .flex.border-b { border:0 !important; background:transparent !important; padding:0 !important; gap:10px !important; }
+        .deecar-shell main .flex.border-b > button { border:1px solid rgba(148,163,184,.12) !important; background:#111923 !important; color:#94a3b8 !important; border-radius:15px !important; padding:13px 16px !important; }
+        .deecar-shell main .flex.border-b > button[class*="bg-blue-600"] { background:linear-gradient(135deg,#0891b2,#06b6d4) !important; color:white !important; border-color:transparent !important; box-shadow:0 8px 24px rgba(6,182,212,.2) !important; }
+        .deecar-shell main .text-slate-400 { color:#9aa9bc !important; }
+        .deecar-shell main .text-slate-500 { color:#718198 !important; }
+        .deecar-shell main .text-blue-400 { color:#67e8f9 !important; }
+        .deecar-shell main .bg-blue-500\/10 { background:rgba(34,211,238,.09) !important; }
+        @media (max-width:640px) {
+          .deecar-shell header > div { min-height:66px !important; padding:10px 14px !important; }
+          .deecar-shell header > div > div:first-child { flex:1 1 auto !important; width:auto !important; }
+          .deecar-shell header > div > div:last-child { flex:0 0 auto !important; width:auto !important; }
+          .deecar-shell main { padding:16px 12px 90px !important; gap:14px !important; }
+          .deecar-shell main .flex.border-b { display:grid !important; grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:8px !important; }
+          .deecar-shell main .flex.border-b > button { min-height:54px !important; padding:10px 8px !important; font-size:11px !important; }
+          .deecar-shell main > div:not(.flex.border-b) { border-radius:20px !important; }
+          .deecar-shell main .p-4 { padding:15px !important; }
+          .deecar-shell main .p-3 { padding:13px !important; }
+          .deecar-shell main .text-base { font-size:16px !important; }
+          .deecar-shell main button,.deecar-shell main label { min-height:44px; }
+        }
+        /* Original functionality and Firestore structures intentionally untouched. */
         .deecar-shell { background-image: radial-gradient(ellipse at 15% 0%, rgba(14,165,233,.10), transparent 35%), radial-gradient(ellipse at 90% 15%, rgba(59,130,246,.07), transparent 28%); }
         .deecar-shell header { border-color: rgba(51,65,85,.55) !important; box-shadow: 0 8px 24px rgba(0,0,0,.12); }
         .deecar-shell header > div { min-height: 68px; }
@@ -1146,7 +1189,7 @@ function MainApp() {
             <div>
               <div className="flex items-center gap-1.5">
                 <h1 className="font-bold text-sm tracking-wide bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-                  DEECAR Tracker
+                  DEECAR
                 </h1>
                 <span className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full border ${cloudStatus === 'connected' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : cloudStatus === 'error' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'}`}>
                   <Cloud className="w-2.5 h-2.5" /> {cloudStatus === 'connected' ? 'Cloud Synced' : cloudStatus === 'error' ? 'Sync Error' : cloudStatus === 'missing' ? 'No Cloud Document' : 'Syncing...'}
