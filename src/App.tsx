@@ -327,7 +327,7 @@ function MainApp() {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
   const [isCloudLoading, setIsCloudLoading] = useState<boolean>(true);
 
-  const [activeTab, setActiveTab] = useState('garage');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [editingItem, setEditingItem] = useState<MaItem | null>(null);
   const [isAddItemOpen, setIsAddItemOpen] = useState(false);
@@ -830,13 +830,13 @@ function MainApp() {
 
   if (!user) {
     return (
-      <div className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-200 ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
+      <div className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-200 ${isDarkMode ? 'bg-[#070B10] text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
         <div className={`w-full max-w-sm p-6 rounded-2xl border shadow-xl space-y-5 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
           <div className="text-center space-y-1.5">
-            <div className="bg-gradient-to-tr from-blue-600 to-indigo-500 w-12 h-12 rounded-xl flex items-center justify-center shadow-md mx-auto text-white">
+            <div className="bg-gradient-to-tr from-cyan-500 to-blue-600 w-12 h-12 rounded-xl flex items-center justify-center shadow-md mx-auto text-white">
               <Car className="w-6 h-6" />
             </div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
+            <h1 className="text-xl font-bold bg-gradient-to-r from-cyan-300 to-blue-400 bg-clip-text text-transparent">
               DEECAR
             </h1>
             <p className="text-[11px] text-slate-400">ระบบเช็กลิสต์ระยะบำรุงรักษาและเอกสารรถยนต์ส่วนบุคคล</p>
@@ -957,18 +957,27 @@ function MainApp() {
   }
 
   return (
-    <div className={`min-h-screen text-xs transition-colors duration-200 ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
-      
+    <div className={`deecar-modern min-h-screen text-xs transition-colors duration-200 ${isDarkMode ? 'bg-[#070B10] text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
+      <style>{`
+        .deecar-modern button { transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+        .deecar-modern button:hover { transform: translateY(-1px); }
+        .deecar-modern input, .deecar-modern select { border-radius: 10px !important; }
+        .deecar-modern aside { background: linear-gradient(180deg,#0c141d 0%,#080d13 100%); border-color:#1d2a36 !important; }
+        .deecar-modern section { background-color:#070b10; }
+        .deecar-modern header { box-shadow: 0 8px 32px rgba(0,0,0,.22); }
+        .deecar-modern h2 { letter-spacing:-.025em; }
+        .deecar-modern .grid > div { border-radius:20px; }
+      `}</style>
       {/* Header Bar */}
-      <header className={`border-b sticky top-0 z-30 backdrop-blur-md ${isDarkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white/80 border-slate-200'}`}>
-        <div className="max-w-none px-5 h-16 flex items-center justify-between">
+      <header className={`border-b sticky top-0 z-30 backdrop-blur-md ${isDarkMode ? 'bg-[#0B1119]/95 border-[#1D2A36]' : 'bg-white/80 border-slate-200'}`}>
+        <div className="max-w-none px-5 h-[72px] flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="bg-gradient-to-tr from-blue-600 to-indigo-500 p-2 rounded-xl shadow-sm text-white">
+            <div className="bg-gradient-to-tr from-cyan-500 to-blue-600 p-2 rounded-2xl shadow-lg shadow-cyan-900/20 text-white">
               <Car className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h1 className="font-bold text-sm tracking-wide bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
+                <h1 className="font-black text-base tracking-[.16em] bg-gradient-to-r from-cyan-300 to-blue-400 bg-clip-text text-transparent">
                   DEECAR
                 </h1>
                 <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
@@ -1042,23 +1051,23 @@ function MainApp() {
         ) : (
           <>
             {/* DEECAR 3.0 Navigation: replaced horizontal tabs with a real sidebar */}
-            <aside className={`hidden md:flex w-[248px] shrink-0 flex-col border-r px-4 py-5 ${isDarkMode ? 'bg-slate-900/70 border-slate-800' : 'bg-white border-slate-200'}`}>
-              <div className={`mb-5 rounded-2xl p-3 border ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+            <aside className={`hidden md:flex w-[264px] shrink-0 flex-col border-r px-5 py-6 ${isDarkMode ? 'bg-[#0B1119] border-[#1D2A36]' : 'bg-white border-slate-200'}`}>
+              <div className={`mb-5 rounded-2xl p-4 border shadow-lg ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                 <div className="text-[10px] uppercase tracking-[.2em] font-bold text-cyan-500">Mobility / Maintenance</div>
                 <div className="text-lg font-black tracking-[.15em] mt-1">DEECAR <span className="text-cyan-500">3.0</span></div>
                 <div className="text-[10px] text-slate-500 mt-1">Vehicle Care Workspace</div>
               </div>
               <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold px-2 mb-2">Workspace</div>
-              {([['garage',LayoutGrid,'Garage Overview',vehicles.length],['dashboard',Gauge,'Maintenance',summary.overdueCount+summary.soonCount],['items',Wrench,'MA Checklist',items.length],['preset-catalog',BookOpen,'MA Catalog',null],['history',History,'Service History',serviceHistory.length]] as const).map(([tab,Icon,label,count]) => (
-                <button key={tab} onClick={() => setActiveTab(tab)} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl mb-1 text-left text-xs font-semibold transition-all ${activeTab===tab ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/20' : isDarkMode ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-100' : 'text-slate-600 hover:bg-slate-100'}`}>
+              {([['garage',LayoutGrid,'Garage',vehicles.length],['dashboard',Gauge,'Maintenance Center',summary.overdueCount+summary.soonCount],['items',Wrench,'Checklist',items.length],['preset-catalog',BookOpen,'MA Library',null],['history',History,'Service History',serviceHistory.length]] as const).map(([tab,Icon,label,count]) => (
+                <button key={tab} onClick={() => setActiveTab(tab)} className={`w-full flex items-center gap-3 px-3.5 py-3.5 rounded-xl mb-1.5 text-left text-sm font-semibold transition-all ${activeTab===tab ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-400/25 shadow-[inset_3px_0_0_0_#22d3ee]' : isDarkMode ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-100' : 'text-slate-600 hover:bg-slate-100'}`}>
                   <Icon className="w-4 h-4 shrink-0"/><span className="flex-1">{label}</span>{count!==null && <span className={`text-[10px] ${tab==='dashboard' && count>0 ? 'text-rose-400' : 'text-slate-500'}`}>{count}</span>}
                 </button>
               ))}
               <div className="mt-auto pt-4 border-t border-slate-800 text-[10px] text-slate-500">Signed in · {user.email}</div>
             </aside>
-            <section className={`flex-1 min-w-0 px-3 md:px-6 py-4 pb-24 md:pb-6 space-y-4 ${isDarkMode ? 'bg-[#080d13]' : 'bg-slate-50'}`}>
-            {/* Top Control Bar */}
-            <div className={`p-4 rounded-2xl border shadow-md space-y-3 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+            <section className={`flex-1 min-w-0 px-3 md:px-6 py-4 pb-24 md:pb-6 space-y-4 ${isDarkMode ? 'bg-[#070B10]' : 'bg-slate-50'}`}>
+            {/* Vehicle Control Panel: dedicated Garage workspace only */}
+            <div className={`p-4 rounded-2xl border shadow-xl space-y-3 ${isDarkMode ? 'bg-[#101923] border-[#22313D]' : 'bg-white border-slate-200'}`}>
               
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 pb-3 border-b border-slate-700/50">
                 <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -1185,7 +1194,7 @@ function MainApp() {
                         type="date"
                         value={today}
                         readOnly
-                        onChange={() => {}}}
+                        onChange={() => {}}
                         className={`w-full mt-1 px-2.5 py-1 text-xs font-semibold rounded-lg border ${
                           isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'
                         }`}
@@ -1197,8 +1206,8 @@ function MainApp() {
               )}
             </div>
 
-              <div className="flex items-center justify-between gap-2">
-                <div><div className="text-[10px] uppercase tracking-[.18em] text-cyan-500 font-bold">Workspace</div><h2 className="text-lg font-bold mt-1">{activeTab==='garage'?'Garage Overview':activeTab==='dashboard'?'Maintenance Center':activeTab==='items'?'MA Checklist':activeTab==='preset-catalog'?'MA Catalog':'Service History'}</h2></div>
+              <div className="flex items-center justify-between gap-2 rounded-2xl px-1 py-2">
+                <div><div className="text-[10px] uppercase tracking-[.18em] text-cyan-400 font-bold">DEECAR / WORKSPACE</div><h2 className="text-lg font-bold mt-1">{activeTab==='garage'?'Garage Overview':activeTab==='dashboard'?'Maintenance Center':activeTab==='items'?'MA Checklist':activeTab==='preset-catalog'?'MA Catalog':'Service History'}</h2></div>
                 <div className="hidden sm:block text-[10px] text-slate-500">{vehicles.length} vehicles · {serviceHistory.length} records</div>
               </div>
               {/* Vehicle controls are retained and rendered inside the workspace */}
@@ -1231,13 +1240,13 @@ function MainApp() {
                     </button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
                     {allVehiclesSummary.map((vSummary: any) => {
                       const isSelected = vSummary.id === selectedVehicleId;
                       return (
                         <div 
                           key={vSummary.id} 
-                          className={`p-4 rounded-2xl border transition-all relative flex flex-col justify-between ${
+                          className={`p-5 rounded-[22px] border transition-all relative flex flex-col justify-between shadow-lg hover:-translate-y-0.5 ${
                             isSelected 
                               ? 'border-blue-500 shadow-md shadow-blue-500/10' 
                               : isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
@@ -1658,7 +1667,7 @@ function MainApp() {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
                   <div className={`p-4 rounded-2xl border space-y-3 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
                     <h3 className="font-bold text-xs flex items-center gap-1.5 text-blue-400 border-b pb-2.5 border-slate-700/50">
                       <Car className="w-4 h-4" /> {PRESET_MA_GROUPS.car.label} ({PRESET_MA_GROUPS.car.items.length} รายการ)
@@ -1756,10 +1765,9 @@ function MainApp() {
                 </div>
               </div>
             )}
+            </section>
           </>
         )}
-
-      </section>
       </main>
 
       {/* Modal 1: เพิ่มรถ/มอเตอร์ไซค์ใหม่ */}
