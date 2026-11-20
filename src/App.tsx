@@ -961,7 +961,7 @@ function MainApp() {
       
       {/* Header Bar */}
       <header className={`border-b sticky top-0 z-30 backdrop-blur-md ${isDarkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white/80 border-slate-200'}`}>
-        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+        <div className="max-w-none px-5 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="bg-gradient-to-tr from-blue-600 to-indigo-500 p-2 rounded-xl shadow-sm text-white">
               <Car className="w-4 h-4" />
@@ -969,7 +969,7 @@ function MainApp() {
             <div>
               <div className="flex items-center gap-1.5">
                 <h1 className="font-bold text-sm tracking-wide bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-                  DEECAR Tracker
+                  DEECAR
                 </h1>
                 <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
                   <Cloud className="w-2.5 h-2.5" /> Online
@@ -1032,39 +1032,7 @@ function MainApp() {
       </header>
 
       {/* Main Container */}
-      <div className="deecar3-shell flex min-h-[calc(100vh-56px)]">
-      <style>{`        .deecar3-sidebar { position: sticky; top: 56px; height: calc(100vh - 56px); }
-        .deecar3-shell button { -webkit-tap-highlight-color: transparent; }
-        @media (max-width: 767px) { .deecar3-shell main { padding: 12px !important; } }
-        .deecar3-shell input, .deecar3-shell select { outline: none; }
-        .deecar3-shell input:focus, .deecar3-shell select:focus { border-color: #06b6d4 !important; box-shadow: 0 0 0 2px rgba(6,182,212,.12); }
-      `}</style>
-
-      <aside className={`deecar3-sidebar hidden md:flex flex-col w-64 shrink-0 border-r ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
-        <div className="px-5 py-5 border-b border-slate-800/70">
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 p-2.5 text-white shadow-lg shadow-cyan-500/20"><Car className="w-5 h-5" /></div>
-            <div><div className="font-black tracking-[0.18em] text-sm">DEECAR</div><div className="text-[9px] tracking-[0.2em] text-slate-500">VEHICLE CARE</div></div>
-          </div>
-        </div>
-        <div className="px-4 pt-5 pb-2 text-[9px] uppercase tracking-[0.18em] text-slate-500 font-bold">Workspace</div>
-        <nav className="px-3 space-y-1">
-          {([
-            ['garage', LayoutGrid, 'Dashboard', 'ภาพรวมรถทั้งหมด'],
-            ['dashboard', Gauge, 'Maintenance', 'MA คันที่เลือก'],
-            ['items', Wrench, 'MA Manager', 'จัดการหัวข้อ MA'],
-            ['preset-catalog', BookOpen, 'MA Catalog', 'คลัง MA มาตรฐาน'],
-            ['history', History, 'Service History', 'ประวัติการบันทึก']
-          ] as const).map(([tab, Icon, title, subtitle]) => (
-            <button key={tab} onClick={() => setActiveTab(tab)} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all ${activeTab === tab ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-sm' : isDarkMode ? 'text-slate-400 hover:bg-slate-900 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'}`}>
-              <Icon className="w-4 h-4 shrink-0" /><span className="min-w-0 flex-1"><span className="block text-xs font-semibold">{title}</span><span className="block text-[9px] opacity-60 mt-0.5">{subtitle}</span></span>
-              {tab === 'dashboard' && (summary.overdueCount + summary.soonCount > 0) && <span className="text-[9px] bg-rose-500 text-white rounded-full px-1.5 py-0.5">{summary.overdueCount + summary.soonCount}</span>}
-            </button>
-          ))}
-        </nav>
-        <div className="mt-auto p-4"><div className={`rounded-xl p-3 border ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'}`}><div className="text-[9px] text-slate-500 uppercase tracking-wider">Your Garage</div><div className="text-xl font-bold mt-1">{vehicles.length} <span className="text-xs font-medium text-slate-500">vehicles</span></div><div className="text-[10px] text-cyan-500 mt-1">{serviceHistory.length} service records</div></div></div>
-      </aside>
-      <main className="flex-1 min-w-0 max-w-7xl mx-auto px-4 md:px-6 py-5 space-y-4">
+      <main className="max-w-none min-h-[calc(100vh-64px)] flex">
 
         {isCloudLoading ? (
           <div className="p-10 text-center text-slate-400 space-y-2">
@@ -1073,6 +1041,22 @@ function MainApp() {
           </div>
         ) : (
           <>
+            {/* DEECAR 3.0 Navigation: replaced horizontal tabs with a real sidebar */}
+            <aside className={`hidden md:flex w-[248px] shrink-0 flex-col border-r px-4 py-5 ${isDarkMode ? 'bg-slate-900/70 border-slate-800' : 'bg-white border-slate-200'}`}>
+              <div className={`mb-5 rounded-2xl p-3 border ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <div className="text-[10px] uppercase tracking-[.2em] font-bold text-cyan-500">Mobility / Maintenance</div>
+                <div className="text-lg font-black tracking-[.15em] mt-1">DEECAR <span className="text-cyan-500">3.0</span></div>
+                <div className="text-[10px] text-slate-500 mt-1">Vehicle Care Workspace</div>
+              </div>
+              <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold px-2 mb-2">Workspace</div>
+              {([['garage',LayoutGrid,'Garage Overview',vehicles.length],['dashboard',Gauge,'Maintenance',summary.overdueCount+summary.soonCount],['items',Wrench,'MA Checklist',items.length],['preset-catalog',BookOpen,'MA Catalog',null],['history',History,'Service History',serviceHistory.length]] as const).map(([tab,Icon,label,count]) => (
+                <button key={tab} onClick={() => setActiveTab(tab)} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl mb-1 text-left text-xs font-semibold transition-all ${activeTab===tab ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/20' : isDarkMode ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-100' : 'text-slate-600 hover:bg-slate-100'}`}>
+                  <Icon className="w-4 h-4 shrink-0"/><span className="flex-1">{label}</span>{count!==null && <span className={`text-[10px] ${tab==='dashboard' && count>0 ? 'text-rose-400' : 'text-slate-500'}`}>{count}</span>}
+                </button>
+              ))}
+              <div className="mt-auto pt-4 border-t border-slate-800 text-[10px] text-slate-500">Signed in · {user.email}</div>
+            </aside>
+            <section className={`flex-1 min-w-0 px-3 md:px-6 py-4 pb-24 md:pb-6 space-y-4 ${isDarkMode ? 'bg-[#080d13]' : 'bg-slate-50'}`}>
             {/* Top Control Bar */}
             <div className={`p-4 rounded-2xl border shadow-md space-y-3 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
               
@@ -1201,7 +1185,7 @@ function MainApp() {
                         type="date"
                         value={today}
                         readOnly
-                        onChange={() => {}}
+                        onChange={() => {}}}
                         className={`w-full mt-1 px-2.5 py-1 text-xs font-semibold rounded-lg border ${
                           isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'
                         }`}
@@ -1213,19 +1197,11 @@ function MainApp() {
               )}
             </div>
 
-            {/* Page heading replaces the former horizontal tabs. Navigation lives in the new sidebar. */}
-            <div className={`flex items-center justify-between gap-3 px-1 py-2 ${isDarkMode ? 'text-slate-100' : 'text-slate-800'}`}>
-              <div><div className="text-[9px] uppercase tracking-[0.22em] text-cyan-500 font-bold">Garage Workspace / {activeTab}</div><h2 className="text-lg md:text-2xl font-black tracking-tight mt-1">{activeTab === 'garage' ? 'Garage Overview' : activeTab === 'dashboard' ? 'Maintenance Center' : activeTab === 'items' ? 'Maintenance Manager' : activeTab === 'preset-catalog' ? 'MA Catalog' : 'Service History'}</h2><p className="text-[10px] text-slate-500 mt-1">จัดการรถและงานบำรุงรักษาผ่านพื้นที่ทำงานใหม่</p></div>
-              <div className="hidden sm:flex items-center gap-2 text-[10px] text-slate-500"><span className="w-2 h-2 rounded-full bg-emerald-500"/> Cloud workspace</div>
-            </div>
-
-            {/* Mobile page navigation */}
-            <nav className="md:hidden grid grid-cols-5 gap-1 p-1 rounded-2xl border border-slate-800 bg-slate-900/70">
-              {([
-                ['garage', LayoutGrid, 'Home'], ['dashboard', Gauge, 'MA'], ['items', Wrench, 'Manage'], ['preset-catalog', BookOpen, 'Catalog'], ['history', History, 'History']
-              ] as const).map(([tab, Icon, label]) => <button key={tab} onClick={() => setActiveTab(tab)} className={`rounded-xl py-2 flex flex-col items-center gap-1 text-[9px] ${activeTab === tab ? 'bg-cyan-600 text-white' : 'text-slate-400'}`}><Icon className="w-4 h-4"/><span>{label}</span></button>)}
-            </nav>
-
+              <div className="flex items-center justify-between gap-2">
+                <div><div className="text-[10px] uppercase tracking-[.18em] text-cyan-500 font-bold">Workspace</div><h2 className="text-lg font-bold mt-1">{activeTab==='garage'?'Garage Overview':activeTab==='dashboard'?'Maintenance Center':activeTab==='items'?'MA Checklist':activeTab==='preset-catalog'?'MA Catalog':'Service History'}</h2></div>
+                <div className="hidden sm:block text-[10px] text-slate-500">{vehicles.length} vehicles · {serviceHistory.length} records</div>
+              </div>
+              {/* Vehicle controls are retained and rendered inside the workspace */}
             {/* TAB 0: GARAGE ALL VEHICLES SUMMARY */}
             {activeTab === 'garage' && (
               <div className="space-y-4">
@@ -1783,8 +1759,8 @@ function MainApp() {
           </>
         )}
 
+      </section>
       </main>
-      </div>
 
       {/* Modal 1: เพิ่มรถ/มอเตอร์ไซค์ใหม่ */}
       {isAddVehicleOpen && (
@@ -2088,6 +2064,9 @@ function MainApp() {
         </div>
       )}
 
+      <nav className={`md:hidden fixed bottom-0 inset-x-0 z-40 grid grid-cols-5 border-t px-1 py-1.5 pb-[max(6px,env(safe-area-inset-bottom))] ${isDarkMode ? 'bg-slate-950/95 border-slate-800 backdrop-blur' : 'bg-white/95 border-slate-200 backdrop-blur'}`}>
+        {([['garage',LayoutGrid,'Garage'],['dashboard',Gauge,'MA'],['items',Wrench,'Checklist'],['preset-catalog',BookOpen,'Catalog'],['history',History,'History']] as const).map(([tab,Icon,label]) => <button key={tab} onClick={() => setActiveTab(tab)} className={`flex flex-col items-center gap-1 py-1 text-[9px] ${activeTab===tab ? 'text-cyan-500' : 'text-slate-500'}`}><Icon className="w-4 h-4"/><span>{label}</span></button>)}
+      </nav>
     </div>
   );
 }
