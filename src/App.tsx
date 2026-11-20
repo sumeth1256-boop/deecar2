@@ -1085,7 +1085,27 @@ function MainApp() {
 
   return (
     <div className={`deecar-shell min-h-screen text-xs transition-colors duration-200 ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
-      <style>{`\n        .deecar-shell button,.deecar-shell input,.deecar-shell select { -webkit-tap-highlight-color: transparent; }\n        .deecar-shell button { transition: transform .15s ease, background-color .15s ease, border-color .15s ease; }\n        @media (max-width: 640px) { .deecar-shell main { padding-left: 12px !important; padding-right: 12px !important; } .deecar-shell header > div { padding-left: 12px !important; padding-right: 12px !important; } .deecar-shell input,.deecar-shell select { font-size: 16px !important; } .deecar-shell button { min-height: 40px; } }\n      `}</style>
+      <style>{`\n        .deecar-shell button,.deecar-shell input,.deecar-shell select { -webkit-tap-highlight-color: transparent; }\n        .deecar-shell button { transition: transform .15s ease, background-color .15s ease, border-color .15s ease; }\n        @media (max-width: 640px) {
+          html, body, #root { width: 100%; max-width: 100%; margin: 0; overflow-x: hidden; }
+          .deecar-shell { width: 100%; max-width: 100vw; overflow-x: clip; }
+          .deecar-shell *, .deecar-shell *::before, .deecar-shell *::after { box-sizing: border-box; min-width: 0; }
+          .deecar-shell main { width: 100%; max-width: 100%; padding-left: 10px !important; padding-right: 10px !important; }
+          .deecar-shell header > div { width: 100%; max-width: 100%; padding-left: 10px !important; padding-right: 10px !important; flex-wrap: wrap; align-items: flex-start; }
+          .deecar-shell header > div > div:first-child { flex: 1 1 100%; width: 100%; }
+          .deecar-shell header > div > div:last-child { flex: 1 1 100%; width: 100%; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+          .deecar-shell header button, .deecar-shell header label { min-height: 40px; }
+          .deecar-shell input, .deecar-shell select { font-size: 16px !important; max-width: 100%; }
+          .deecar-shell button { min-height: 40px; max-width: 100%; }
+          .deecar-shell main > div { max-width: 100%; }
+          .deecar-shell main > div.flex.border-b { flex-wrap: wrap; overflow-x: visible !important; }
+          .deecar-shell main > div.flex.border-b > button { flex: 1 1 calc(50% - 6px); justify-content: center; white-space: normal !important; text-align: center; }
+          .deecar-shell main select { width: 100%; flex: 1 1 100%; }
+          .deecar-shell main .grid { min-width: 0; }
+          .deecar-shell main .grid input { min-width: 0; width: 100%; }
+          .deecar-shell main .overflow-x-auto { max-width: 100%; }
+          .deecar-shell main .flex { min-width: 0; }
+          .deecar-shell main .whitespace-nowrap { white-space: normal; }
+        }\n      `}</style>
       {/* Header Bar */}
       <header className={`border-b sticky top-0 z-30 backdrop-blur-md ${isDarkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white/80 border-slate-200'}`}>
         <div className="max-w-6xl mx-auto px-3 sm:px-4 min-h-14 py-2 flex items-center justify-between gap-2">
