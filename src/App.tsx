@@ -837,7 +837,7 @@ function MainApp() {
               <Car className="w-6 h-6" />
             </div>
             <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-              DEECAR Tracker
+              DEECAR
             </h1>
             <p className="text-[11px] text-slate-400">ระบบเช็กลิสต์ระยะบำรุงรักษาและเอกสารรถยนต์ส่วนบุคคล</p>
           </div>
@@ -1031,34 +1031,41 @@ function MainApp() {
         </div>
       </header>
 
-      {/* DEECAR 3.0 — real navigation/layout rebuild */}
-      <div className={`deecar3-shell min-h-[calc(100vh-56px)] flex ${isDarkMode ? 'bg-[#080d14]' : 'bg-slate-50'}`}>
-        <style>{`
-          .deecar3-sidebar { backdrop-filter: blur(18px); }
-          .deecar3-content { animation: deecar3fade .22s ease-out; }
-          @keyframes deecar3fade { from { opacity: .72; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-          @media (min-width: 768px) { .deecar3-content { max-width: calc(100vw - 248px); } }
-        `}</style>
-        <aside className={`deecar3-sidebar hidden md:flex w-[248px] shrink-0 flex-col sticky top-14 h-[calc(100vh-56px)] border-r ${isDarkMode ? 'bg-[#0b121b] border-slate-800' : 'bg-white border-slate-200'}`}>
-          <div className="px-5 py-5">
-            <div className="text-[10px] tracking-[.22em] font-bold text-cyan-500">MOBILITY / MAINTENANCE</div>
-            <div className="text-xl font-black tracking-widest mt-1">DEECAR <span className="text-cyan-400">3.0</span></div>
-            <div className="text-[10px] text-slate-500 mt-1">Vehicle care control center</div>
+      {/* Main Container */}
+      <div className="deecar3-shell flex min-h-[calc(100vh-56px)]">
+      <style>{`        .deecar3-sidebar { position: sticky; top: 56px; height: calc(100vh - 56px); }
+        .deecar3-shell button { -webkit-tap-highlight-color: transparent; }
+        @media (max-width: 767px) { .deecar3-shell main { padding: 12px !important; } }
+        .deecar3-shell input, .deecar3-shell select { outline: none; }
+        .deecar3-shell input:focus, .deecar3-shell select:focus { border-color: #06b6d4 !important; box-shadow: 0 0 0 2px rgba(6,182,212,.12); }
+      `}</style>
+
+      <aside className={`deecar3-sidebar hidden md:flex flex-col w-64 shrink-0 border-r ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
+        <div className="px-5 py-5 border-b border-slate-800/70">
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 p-2.5 text-white shadow-lg shadow-cyan-500/20"><Car className="w-5 h-5" /></div>
+            <div><div className="font-black tracking-[0.18em] text-sm">DEECAR</div><div className="text-[9px] tracking-[0.2em] text-slate-500">VEHICLE CARE</div></div>
           </div>
-          <div className="px-3 space-y-1">
-            {([['garage',LayoutGrid,'ภาพรวมรถทั้งหมด'],['dashboard',Gauge,'Maintenance Overview'],['items',Wrench,'จัดการรายการ MA'],['preset-catalog',BookOpen,'คลัง MA มาตรฐาน'],['history',History,'ประวัติการบันทึก']] as const).map(([tab,Icon,label]) => {
-              const selected = activeTab === tab;
-              return <button key={tab} onClick={() => setActiveTab(tab)} className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-left text-xs font-semibold transition-all ${selected ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/20 shadow-sm' : isDarkMode ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'}`}><Icon className="w-4 h-4"/><span>{label}</span>{tab==='garage' && <span className="ml-auto text-[10px] opacity-70">{vehicles.length}</span>}{tab==='dashboard' && (summary.overdueCount+summary.soonCount>0) && <span className="ml-auto rounded-full bg-rose-500 text-white px-1.5 py-0.5 text-[9px]">{summary.overdueCount+summary.soonCount}</span>}</button>
-            })}
-          </div>
-          <div className="mt-auto p-4">
-            <div className={`rounded-xl p-3 border ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'}`}><div className="text-[10px] text-slate-500">Signed in</div><div className="text-[11px] truncate font-medium mt-1">{user.email}</div><div className="flex items-center gap-1 text-[10px] text-emerald-400 mt-2"><Cloud className="w-3 h-3"/> Cloud Sync</div></div>
-          </div>
-        </aside>
-        <main className="deecar3-content flex-1 min-w-0 max-w-none px-3 md:px-6 py-4 pb-24 md:pb-6 space-y-4">
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 grid grid-cols-5 gap-1 border-t border-slate-800 bg-[#0b121b]/95 backdrop-blur p-2">
-          {([['garage',LayoutGrid,'Garage'],['dashboard',Gauge,'MA'],['items',Wrench,'Items'],['preset-catalog',BookOpen,'Catalog'],['history',History,'History']] as const).map(([tab,Icon,label]) => <button key={tab} onClick={()=>setActiveTab(tab)} className={`flex flex-col items-center gap-1 py-1 text-[9px] ${activeTab===tab?'text-cyan-300':'text-slate-500'}`}><Icon className="w-4 h-4"/><span>{label}</span></button>)}
+        </div>
+        <div className="px-4 pt-5 pb-2 text-[9px] uppercase tracking-[0.18em] text-slate-500 font-bold">Workspace</div>
+        <nav className="px-3 space-y-1">
+          {([
+            ['garage', LayoutGrid, 'Dashboard', 'ภาพรวมรถทั้งหมด'],
+            ['dashboard', Gauge, 'Maintenance', 'MA คันที่เลือก'],
+            ['items', Wrench, 'MA Manager', 'จัดการหัวข้อ MA'],
+            ['preset-catalog', BookOpen, 'MA Catalog', 'คลัง MA มาตรฐาน'],
+            ['history', History, 'Service History', 'ประวัติการบันทึก']
+          ] as const).map(([tab, Icon, title, subtitle]) => (
+            <button key={tab} onClick={() => setActiveTab(tab)} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all ${activeTab === tab ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-sm' : isDarkMode ? 'text-slate-400 hover:bg-slate-900 hover:text-slate-200' : 'text-slate-600 hover:bg-slate-100'}`}>
+              <Icon className="w-4 h-4 shrink-0" /><span className="min-w-0 flex-1"><span className="block text-xs font-semibold">{title}</span><span className="block text-[9px] opacity-60 mt-0.5">{subtitle}</span></span>
+              {tab === 'dashboard' && (summary.overdueCount + summary.soonCount > 0) && <span className="text-[9px] bg-rose-500 text-white rounded-full px-1.5 py-0.5">{summary.overdueCount + summary.soonCount}</span>}
+            </button>
+          ))}
         </nav>
+        <div className="mt-auto p-4"><div className={`rounded-xl p-3 border ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'}`}><div className="text-[9px] text-slate-500 uppercase tracking-wider">Your Garage</div><div className="text-xl font-bold mt-1">{vehicles.length} <span className="text-xs font-medium text-slate-500">vehicles</span></div><div className="text-[10px] text-cyan-500 mt-1">{serviceHistory.length} service records</div></div></div>
+      </aside>
+      <main className="flex-1 min-w-0 max-w-7xl mx-auto px-4 md:px-6 py-5 space-y-4">
+
         {isCloudLoading ? (
           <div className="p-10 text-center text-slate-400 space-y-2">
             <RefreshCw className="w-6 h-6 animate-spin mx-auto text-blue-500" />
@@ -1205,6 +1212,19 @@ function MainApp() {
                 </div>
               )}
             </div>
+
+            {/* Page heading replaces the former horizontal tabs. Navigation lives in the new sidebar. */}
+            <div className={`flex items-center justify-between gap-3 px-1 py-2 ${isDarkMode ? 'text-slate-100' : 'text-slate-800'}`}>
+              <div><div className="text-[9px] uppercase tracking-[0.22em] text-cyan-500 font-bold">Garage Workspace / {activeTab}</div><h2 className="text-lg md:text-2xl font-black tracking-tight mt-1">{activeTab === 'garage' ? 'Garage Overview' : activeTab === 'dashboard' ? 'Maintenance Center' : activeTab === 'items' ? 'Maintenance Manager' : activeTab === 'preset-catalog' ? 'MA Catalog' : 'Service History'}</h2><p className="text-[10px] text-slate-500 mt-1">จัดการรถและงานบำรุงรักษาผ่านพื้นที่ทำงานใหม่</p></div>
+              <div className="hidden sm:flex items-center gap-2 text-[10px] text-slate-500"><span className="w-2 h-2 rounded-full bg-emerald-500"/> Cloud workspace</div>
+            </div>
+
+            {/* Mobile page navigation */}
+            <nav className="md:hidden grid grid-cols-5 gap-1 p-1 rounded-2xl border border-slate-800 bg-slate-900/70">
+              {([
+                ['garage', LayoutGrid, 'Home'], ['dashboard', Gauge, 'MA'], ['items', Wrench, 'Manage'], ['preset-catalog', BookOpen, 'Catalog'], ['history', History, 'History']
+              ] as const).map(([tab, Icon, label]) => <button key={tab} onClick={() => setActiveTab(tab)} className={`rounded-xl py-2 flex flex-col items-center gap-1 text-[9px] ${activeTab === tab ? 'bg-cyan-600 text-white' : 'text-slate-400'}`}><Icon className="w-4 h-4"/><span>{label}</span></button>)}
+            </nav>
 
             {/* TAB 0: GARAGE ALL VEHICLES SUMMARY */}
             {activeTab === 'garage' && (
@@ -1764,6 +1784,7 @@ function MainApp() {
         )}
 
       </main>
+      </div>
 
       {/* Modal 1: เพิ่มรถ/มอเตอร์ไซค์ใหม่ */}
       {isAddVehicleOpen && (
@@ -2067,7 +2088,6 @@ function MainApp() {
         </div>
       )}
 
-      </div>
     </div>
   );
 }
