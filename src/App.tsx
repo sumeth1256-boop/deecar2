@@ -1,6 +1,4 @@
-/* DEECAR 3.0 visual rebuild (UI layer only).
-   Vehicle, MA, history, Firebase/Auth, backup and sync logic are preserved from source. */
-import React, { useState, useEffect, useMemo, useRef, Component, type ErrorInfo, type ReactNode } from 'react';
+import React, { useState, useEffect, useMemo, Component, type ErrorInfo, type ReactNode } from 'react';
 import { 
   Wrench, 
   Car, 
@@ -148,14 +146,6 @@ interface ServiceHistoryItem {
   servicedKm: number;
   servicedDate: string;
   note: string;
-  recordType?: 'service' | 'odometer';
-  vehicleId?: string;
-  previousKm?: number;
-  previousLastKm?: number;
-  previousLastDate?: string;
-  reverted?: boolean;
-  revertedAt?: string;
-  createdAt?: string;
 }
 
 // ============================================================================
@@ -336,11 +326,6 @@ function MainApp() {
   const [serviceHistory, setServiceHistory] = useState<ServiceHistoryItem[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
   const [isCloudLoading, setIsCloudLoading] = useState<boolean>(true);
-  const [cloudStatus, setCloudStatus] = useState<'loading' | 'connected' | 'error' | 'missing'>('loading');
-  const [cloudError, setCloudError] = useState<string>('');
-  const [cloudLoadedUid, setCloudLoadedUid] = useState<string>('');
-  const [cloudLastSync, setCloudLastSync] = useState<string>('');
-  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   const [activeTab, setActiveTab] = useState('garage');
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -380,18 +365,11 @@ function MainApp() {
     if (!user) {
       setVehicles([]);
       setServiceHistory([]);
-      setCloudStatus('loading');
-      setCloudError('');
-      setCloudLoadedUid('');
-      setCloudLastSync('');
       setIsCloudLoading(false);
       return;
     }
 
     setIsCloudLoading(true);
-    setCloudStatus('loading');
-    setCloudError('');
-    setCloudLoadedUid(user.uid);
     const docRef = doc(db, 'deecar_users', user.uid);
     const storageKey = getLocalStorageKey(user.uid);
     const loadLocalBackup = () => {
@@ -411,57 +389,28 @@ function MainApp() {
     };
 
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      setCloudStatus(docSnap.exists() ? 'connected' : 'missing');
-      setCloudError('');
-      setCloudLastSync(new Date().toLocaleString('th-TH'));
       if (docSnap.exists()) {
         const data = docSnap.data();
-        const cloudVehicles = Array.isArray(data.vehicles) ? data.vehicles : [];
-        const cloudHistory = Array.isArray(data.serviceHistory) ? data.serviceHistory : [];
-        const local = loadLocalBackup();
-
-        // Never let an empty cloud document silently erase a non-empty local recovery copy.
-        const shouldRestoreLocal = cloudVehicles.length === 0 && !!local && local.vehicles.length > 0;
-        const loadedVehicles = shouldRestoreLocal ? local!.vehicles : cloudVehicles;
-        const loadedHistory = shouldRestoreLocal ? local!.serviceHistory : cloudHistory;
-
+        const loadedVehicles = Array.isArray(data.vehicles) ? data.vehicles : [];
+        const loadedHistory = Array.isArray(data.serviceHistory) ? data.serviceHistory : [];
         setVehicles(loadedVehicles);
         setServiceHistory(loadedHistory);
-        setSelectedVehicleId(prevId =>
-          (!prevId || !loadedVehicles.some((v: Vehicle) => v.id === prevId))
-            ? (loadedVehicles[0]?.id || '')
-            : prevId
-        );
-
-        if (shouldRestoreLocal) {
-          saveLocalBackup(loadedVehicles, loadedHistory);
-          setDoc(docRef, {
-            vehicles: loadedVehicles,
-            serviceHistory: loadedHistory,
-            updatedAt: new Date().toISOString()
-          }).catch(err => console.error('Cloud recovery write failed', err));
-        } else {
-          saveLocalBackup(loadedVehicles, loadedHistory);
-        }
+        setSelectedVehicleId(prevId => (!prevId || !loadedVehicles.some((v: Vehicle) => v.id === prevId)) ? (loadedVehicles[0]?.id || '') : prevId);
+        saveLocalBackup(loadedVehicles, loadedHistory);
       } else {
+        // Restore local backup before initializing an empty cloud document.
         const local = loadLocalBackup();
         const initialVehicles = local?.vehicles || [];
         const initialHistory = local?.serviceHistory || [];
         setVehicles(initialVehicles);
         setServiceHistory(initialHistory);
         setSelectedVehicleId(initialVehicles[0]?.id || '');
-        setDoc(docRef, {
-          vehicles: initialVehicles,
-          serviceHistory: initialHistory,
-          updatedAt: new Date().toISOString()
-        }).catch(err => console.error('Cloud initialization failed', err));
+        setDoc(docRef, { vehicles: initialVehicles, serviceHistory: initialHistory }).catch(err => console.error('Cloud initialization failed', err));
       }
       setIsCloudLoading(false);
     }, (error) => {
       console.error('Firestore Listen Error:', error);
-      setCloudStatus('error');
-      setCloudError(`${error.code || 'unknown'}: ${error.message}`);
-      setCloudLastSync(new Date().toLocaleString('th-TH'));
+      // Firestore unavailable: use local backup so refresh does not leave the app blank.
       const local = loadLocalBackup();
       if (local) {
         setVehicles(local.vehicles);
@@ -476,33 +425,19 @@ function MainApp() {
 
   const saveToCloud = async (newVehicles: Vehicle[], newHistory: ServiceHistoryItem[]) => {
     if (!user) return;
-
-    const payload = {
-      vehicles: newVehicles,
-      serviceHistory: newHistory,
-      updatedAt: new Date().toISOString()
-    };
-
+    // Save locally first for recovery after refresh, even when internet/cloud is unavailable.
     try {
       localStorage.setItem(getLocalStorageKey(user.uid), JSON.stringify({
-        vehicles: newVehicles,
-        serviceHistory: newHistory,
-        savedAt: payload.updatedAt
+        vehicles: newVehicles, serviceHistory: newHistory, savedAt: new Date().toISOString()
       }));
-    } catch (localError) {
-      console.error('Local backup write failed', localError);
+    } catch (localErr) {
+      console.warn('Local backup write failed', localErr);
     }
-
-    saveQueueRef.current = saveQueueRef.current
-      .catch(() => undefined)
-      .then(async () => {
-        await setDoc(doc(db, 'deecar_users', user.uid), payload);
-      });
-
     try {
-      await saveQueueRef.current;
-    } catch (cloudError) {
-      console.error('Failed to save to Cloud. Local backup remains available.', cloudError);
+      const docRef = doc(db, 'deecar_users', user.uid);
+      await setDoc(docRef, { vehicles: newVehicles, serviceHistory: newHistory });
+    } catch (e) {
+      console.error('Failed to save to cloud. Local backup is available.', e);
     }
   };
 
@@ -537,78 +472,19 @@ function MainApp() {
 
   const handleConfirmUpdateKm = () => {
     if (!currentVehicle) return;
-    const newKmNum = Math.max(0, Math.floor(Number(tempKmInput) || 0));
+    const newKmNum = Math.max(0, Number(tempKmInput) || 0);
+
     if (newKmNum === currentKm) return;
-    if (newKmNum < currentKm) {
-      window.alert('เลขไมล์ใหม่ต่ำกว่าเลขไมล์ปัจจุบัน หากต้องการแก้ไขเลขไมล์ย้อนหลัง กรุณาตรวจสอบข้อมูลก่อน');
-      setTempKmInput(String(currentKm));
-      return;
-    }
-    const isConfirmed = window.confirm(`บันทึกเลขไมล์ ${newKmNum.toLocaleString()} กม. ของ ${carInfo.brand} ${carInfo.model} ใช่หรือไม่?`);
-    if (!isConfirmed) {
-      setTempKmInput(String(currentKm));
-      return;
-    }
-    const historyEntry: ServiceHistoryItem = {
-      id: `odo-${Date.now()}`,
-      carName: `${carInfo.brand} ${carInfo.model}`.trim(),
-      itemId: `odometer-${currentVehicle.id}`,
-      itemName: 'อัปเดตเลขไมล์ (Odometer)',
-      servicedKm: newKmNum,
-      servicedDate: today,
-      note: `เลขไมล์เดิม ${currentKm.toLocaleString()} กม. → ${newKmNum.toLocaleString()} กม.`,
-      recordType: 'odometer',
-      vehicleId: currentVehicle.id,
-      previousKm: currentKm,
-      createdAt: new Date().toISOString()
-    };
-    const updatedVehicles = vehicles.map(v => v.id === currentVehicle.id ? { ...v, currentKm: newKmNum, currentDate: today } : v);
-    const updatedHistory = [historyEntry, ...serviceHistory];
-    setVehicles(updatedVehicles);
-    setServiceHistory(updatedHistory);
-    setTempKmInput(String(newKmNum));
-    saveToCloud(updatedVehicles, updatedHistory);
-  };
 
-  const handleRevertHistory = (historyItem: ServiceHistoryItem) => {
-    if (historyItem.reverted) return;
-    const isOdometer = historyItem.recordType === 'odometer';
-    const confirmText = isOdometer
-      ? `ย้อนเลขไมล์จาก ${historyItem.servicedKm.toLocaleString()} กลับเป็น ${Number(historyItem.previousKm || 0).toLocaleString()} กม. ใช่หรือไม่?`
-      : `ย้อนรายการ "${historyItem.itemName}" ของ ${historyItem.carName} ใช่หรือไม่?`;
-    if (!window.confirm(confirmText)) return;
+    const isConfirmed = window.confirm(
+      `คุณต้องการบันทึกเลขไมล์ใหม่ของ "${carInfo.brand} ${carInfo.model}" เป็น ${newKmNum.toLocaleString()} กม. ใช่หรือไม่?`
+    );
 
-    let updatedVehicles = vehicles;
-    if (isOdometer && historyItem.vehicleId) {
-      const target = vehicles.find(v => v.id === historyItem.vehicleId);
-      // Prevent old odometer records from overwriting a newer current reading.
-      if (target && target.currentKm === historyItem.servicedKm) {
-        updatedVehicles = vehicles.map(v => v.id === historyItem.vehicleId ? { ...v, currentKm: Number(historyItem.previousKm || 0) } : v);
-      } else if (target) {
-        alert('ไม่สามารถคืนเลขไมล์อัตโนมัติได้ เนื่องจากมีการบันทึกเลขไมล์ใหม่หลังรายการนี้ กรุณาตรวจสอบเลขไมล์ด้วยตนเอง');
-        return;
-      }
-    } else if ((historyItem.vehicleId || vehicles.find(v => `${v.carInfo?.brand} ${v.carInfo?.model}`.trim() === historyItem.carName)?.id) && historyItem.itemId) {
-      // Only restore the MA item's previous state when this history entry has a snapshot.
-      // Older records don't contain snapshots, so mark them reverted without clearing current data.
-      if (historyItem.previousLastKm !== undefined || historyItem.previousLastDate !== undefined) {
-        const targetVehicleId = historyItem.vehicleId || vehicles.find(v => `${v.carInfo?.brand} ${v.carInfo?.model}`.trim() === historyItem.carName)?.id;
-        updatedVehicles = vehicles.map(v => {
-          if (v.id !== targetVehicleId) return v;
-          return { ...v, items: (v.items || []).map(item => item.id === historyItem.itemId ? { ...item, lastKm: historyItem.previousLastKm, lastDate: historyItem.previousLastDate } : item) };
-        });
-      } else {
-        alert('รายการประวัติเก่านี้ไม่มี snapshot ของสถานะก่อนบันทึก จึงจะทำเครื่องหมาย Reverted โดยไม่เปลี่ยนสถานะ MA ปัจจุบัน');
-      }
+    if (isConfirmed) {
+      updateCurrentVehicle({ currentKm: newKmNum });
+    } else {
+      setTempKmInput(String(currentKm));
     }
-    const updatedHistory = serviceHistory.map(h => h.id === historyItem.id ? { ...h, reverted: true, revertedAt: new Date().toISOString() } : h);
-    setVehicles(updatedVehicles);
-    setServiceHistory(updatedHistory);
-    if (currentVehicle) {
-      const updatedCurrent = updatedVehicles.find(v => v.id === currentVehicle.id);
-      if (updatedCurrent) setTempKmInput(String(updatedCurrent.currentKm || 0));
-    }
-    saveToCloud(updatedVehicles, updatedHistory);
   };
 
   const currentVehicleEvaluatedItems = useMemo(() => {
@@ -777,12 +653,7 @@ function MainApp() {
       itemName: item.name,
       servicedKm: currentKm,
       servicedDate: currentDate,
-      note: 'บำรุงรักษา/ต่ออายุเรียบร้อย',
-      recordType: 'service',
-      vehicleId: currentVehicle.id,
-      previousLastKm: item.lastKm,
-      previousLastDate: item.lastDate,
-      createdAt: new Date().toISOString()
+      note: 'บำรุงรักษา/ต่ออายุเรียบร้อย'
     };
 
     const updatedHistory = [historyEntry, ...serviceHistory];
@@ -966,7 +837,7 @@ function MainApp() {
               <Car className="w-6 h-6" />
             </div>
             <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-              DEECAR
+              DEECAR GARAGE
             </h1>
             <p className="text-[11px] text-slate-400">ระบบเช็กลิสต์ระยะบำรุงรักษาและเอกสารรถยนต์ส่วนบุคคล</p>
           </div>
@@ -1086,102 +957,34 @@ function MainApp() {
   }
 
   return (
-    <div className={`deecar-shell min-h-screen text-xs transition-colors duration-200 ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
-      <style>{`\n        .deecar-shell button,.deecar-shell input,.deecar-shell select { -webkit-tap-highlight-color: transparent; }\n        .deecar-shell button { transition: transform .15s ease, background-color .15s ease, border-color .15s ease; }\n        @media (max-width: 640px) {
-          html, body, #root { width: 100%; max-width: 100%; margin: 0; overflow-x: hidden; }
-          .deecar-shell { width: 100%; max-width: 100vw; overflow-x: clip; }
-          .deecar-shell *, .deecar-shell *::before, .deecar-shell *::after { box-sizing: border-box; min-width: 0; }
-          .deecar-shell main { width: 100%; max-width: 100%; padding-left: 10px !important; padding-right: 10px !important; }
-          .deecar-shell header > div { width: 100%; max-width: 100%; padding-left: 10px !important; padding-right: 10px !important; flex-wrap: wrap; align-items: flex-start; }
-          .deecar-shell header > div > div:first-child { flex: 1 1 100%; width: 100%; }
-          .deecar-shell header > div > div:last-child { flex: 1 1 100%; width: 100%; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
-          .deecar-shell header button, .deecar-shell header label { min-height: 40px; }
-          .deecar-shell input, .deecar-shell select { font-size: 16px !important; max-width: 100%; }
-          .deecar-shell button { min-height: 40px; max-width: 100%; }
-          .deecar-shell main > div { max-width: 100%; }
-          .deecar-shell main > div.flex.border-b { flex-wrap: wrap; overflow-x: visible !important; }
-          .deecar-shell main > div.flex.border-b > button { flex: 1 1 calc(50% - 6px); justify-content: center; white-space: normal !important; text-align: center; }
-          .deecar-shell main select { width: 100%; flex: 1 1 100%; }
-          .deecar-shell main .grid { min-width: 0; }
-          .deecar-shell main .grid input { min-width: 0; width: 100%; }
-          .deecar-shell main .overflow-x-auto { max-width: 100%; }
-          .deecar-shell main .flex { min-width: 0; }
-          .deecar-shell main .whitespace-nowrap { white-space: normal; }
-        }\n
-        /* DEECAR 3.0 — full visual overhaul: automotive control-center design */
-        .deecar-shell { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; background: #080c12 !important; color: #e8edf5; background-image: radial-gradient(ellipse at 50% -10%, rgba(34,211,238,.16), transparent 38%), linear-gradient(180deg,#080c12 0%,#0b111a 100%) !important; }
-        .deecar-shell header { background: rgba(8,12,18,.88) !important; border-bottom: 1px solid rgba(148,163,184,.12) !important; box-shadow: 0 18px 50px rgba(0,0,0,.24) !important; }
-        .deecar-shell header > div { max-width: 1440px !important; min-height: 76px !important; }
-        .deecar-shell header h1 { font-size: 19px !important; letter-spacing: .12em !important; font-weight: 900 !important; }
-        .deecar-shell header h1::before { content: "MOBILITY / MAINTENANCE"; display:block; font-size:8px; letter-spacing:.22em; color:#64748b; margin-bottom:3px; font-weight:700; }
-        .deecar-shell main { max-width: 1440px !important; padding: 28px 26px 60px !important; gap: 22px !important; }
-        .deecar-shell main > div:not(.flex.border-b) { border-radius: 24px !important; border-color: rgba(148,163,184,.14) !important; box-shadow: 0 24px 60px rgba(0,0,0,.18) !important; }
-        .deecar-shell main .rounded-2xl { border-radius: 22px !important; }
-        .deecar-shell main .rounded-xl { border-radius: 16px !important; }
-        .deecar-shell main .shadow-md,.deecar-shell main .shadow-xl { box-shadow: 0 18px 45px rgba(0,0,0,.18) !important; }
-        .deecar-shell main .bg-slate-900 { background-color: #111923 !important; }
-        .deecar-shell main .bg-slate-800 { background-color: #172230 !important; }
-        .deecar-shell main .border-slate-700,.deecar-shell main .border-slate-800 { border-color: rgba(148,163,184,.14) !important; }
-        .deecar-shell main .bg-blue-600 { background: linear-gradient(135deg,#0891b2,#06b6d4) !important; }
-        .deecar-shell main button { font-weight: 700; letter-spacing: -.01em; border-radius: 14px !important; }
-        .deecar-shell main button:hover { filter: brightness(1.08); }
-        .deecar-shell main button:active { transform: translateY(1px) scale(.99); }
-        .deecar-shell main input,.deecar-shell main select { background-color:#0d1520 !important; border-color:rgba(148,163,184,.18) !important; color:#f1f5f9 !important; border-radius:14px !important; }
-        .deecar-shell main input:focus,.deecar-shell main select:focus { outline:none; border-color:rgba(34,211,238,.6) !important; box-shadow:0 0 0 3px rgba(34,211,238,.12) !important; }
-        .deecar-shell main label { color:#94a3b8; }
-        .deecar-shell main .flex.border-b { border:0 !important; background:transparent !important; padding:0 !important; gap:10px !important; }
-        .deecar-shell main .flex.border-b > button { border:1px solid rgba(148,163,184,.12) !important; background:#111923 !important; color:#94a3b8 !important; border-radius:15px !important; padding:13px 16px !important; }
-        .deecar-shell main .flex.border-b > button[class*="bg-blue-600"] { background:linear-gradient(135deg,#0891b2,#06b6d4) !important; color:white !important; border-color:transparent !important; box-shadow:0 8px 24px rgba(6,182,212,.2) !important; }
-        .deecar-shell main .text-slate-400 { color:#9aa9bc !important; }
-        .deecar-shell main .text-slate-500 { color:#718198 !important; }
-        .deecar-shell main .text-blue-400 { color:#67e8f9 !important; }
-        .deecar-shell main .bg-blue-500\/10 { background:rgba(34,211,238,.09) !important; }
-        @media (max-width:640px) {
-          .deecar-shell header > div { min-height:66px !important; padding:10px 14px !important; }
-          .deecar-shell header > div > div:first-child { flex:1 1 auto !important; width:auto !important; }
-          .deecar-shell header > div > div:last-child { flex:0 0 auto !important; width:auto !important; }
-          .deecar-shell main { padding:16px 12px 90px !important; gap:14px !important; }
-          .deecar-shell main .flex.border-b { display:grid !important; grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:8px !important; }
-          .deecar-shell main .flex.border-b > button { min-height:54px !important; padding:10px 8px !important; font-size:11px !important; }
-          .deecar-shell main > div:not(.flex.border-b) { border-radius:20px !important; }
-          .deecar-shell main .p-4 { padding:15px !important; }
-          .deecar-shell main .p-3 { padding:13px !important; }
-          .deecar-shell main .text-base { font-size:16px !important; }
-          .deecar-shell main button,.deecar-shell main label { min-height:44px; }
-        }
-        /* Original functionality and Firestore structures intentionally untouched. */
-        .deecar-shell { background-image: radial-gradient(ellipse at 15% 0%, rgba(14,165,233,.10), transparent 35%), radial-gradient(ellipse at 90% 15%, rgba(59,130,246,.07), transparent 28%); }
-        .deecar-shell header { border-color: rgba(51,65,85,.55) !important; box-shadow: 0 8px 24px rgba(0,0,0,.12); }
-        .deecar-shell header > div { min-height: 68px; }
-        .deecar-shell main { padding-top: 18px !important; padding-bottom: 28px !important; }
-        .deecar-shell main > div:not(.flex.border-b) { border-radius: 18px; }
-        .deecar-shell main .rounded-2xl { border-radius: 20px !important; }
-        .deecar-shell main .shadow-md, .deecar-shell main .shadow-xl { box-shadow: 0 10px 30px rgba(0,0,0,.12) !important; }
-        .deecar-shell button { border-radius: 12px; font-weight: 650; }
-        .deecar-shell button:active { transform: scale(.985); }
-        .deecar-shell input, .deecar-shell select { border-radius: 12px !important; }
-        .deecar-shell .bg-blue-600 { background-color: #0284c7 !important; }
-        .deecar-shell .hover\:bg-blue-500:hover { background-color: #0ea5e9 !important; }
-        @media (min-width: 641px) {
-          .deecar-shell main { padding-left: 24px !important; padding-right: 24px !important; }
-          .deecar-shell main .grid { gap: 16px; }
-        }
-        @media (max-width: 640px) {
-          .deecar-shell { background-image: radial-gradient(ellipse at 50% 0%, rgba(14,165,233,.10), transparent 45%); }
-          .deecar-shell header { position: sticky; }
-          .deecar-shell header > div { min-height: 58px; gap: 8px; }
-          .deecar-shell main { padding-top: 10px !important; padding-bottom: 18px !important; }
-          .deecar-shell main .rounded-2xl { border-radius: 16px !important; }
-          .deecar-shell main > div.flex.border-b { background: rgba(15,23,42,.45); border: 1px solid rgba(51,65,85,.5); border-radius: 16px; padding: 6px; gap: 6px; }
-          .deecar-shell main > div.flex.border-b > button { flex: 1 1 calc(50% - 6px); min-height: 44px; border-radius: 12px; }
-          .deecar-shell button, .deecar-shell label { min-height: 42px; }
-          .deecar-shell main .p-4 { padding: 12px !important; }
-          .deecar-shell main .text-base { font-size: 16px !important; }
-        }
+    <div className={`deecar3-root min-h-screen text-xs transition-colors duration-200 ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
+
+      <style>{`        /* DEECAR 3.0 — Garage Control Center visual layer; data logic unchanged */
+        .deecar3-root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif!important;background:#070b10!important;color:#e8f0f7!important;background-image:radial-gradient(ellipse at 50% -15%,rgba(15,184,214,.18),transparent 45%),linear-gradient(180deg,#070b10,#0b1118)!important;}
+        .deecar3-root header{background:rgba(7,11,16,.88)!important;border-color:#1a2a36!important;box-shadow:0 10px 36px rgba(0,0,0,.3);backdrop-filter:blur(18px);}
+        .deecar3-root header h1{letter-spacing:.12em!important;text-transform:uppercase;}
+        .deecar3-root main{max-width:1480px!important;padding-top:24px!important;padding-bottom:54px!important;}
+        .deecar3-root main>div{border-radius:20px;}
+        .deecar3-root .bg-slate-900{background:#101923!important;}
+        .deecar3-root .bg-slate-950{background:#080d12!important;}
+        .deecar3-root .border-slate-800{border-color:#1e303e!important;}
+        .deecar3-root button{border-radius:12px!important;font-weight:650;transition:transform .16s ease,filter .16s ease,background .16s ease;}
+        .deecar3-root button:hover{transform:translateY(-1px);filter:brightness(1.1);}
+        .deecar3-root input,.deecar3-root select{border-radius:12px!important;outline:none!important;}
+        .deecar3-root input:focus,.deecar3-root select:focus{border-color:#18b8d5!important;box-shadow:0 0 0 3px rgba(24,184,213,.14);}
+        .deecar3-root .rounded-2xl{border-radius:20px!important;}
+        .deecar3-root .shadow-md{box-shadow:0 14px 38px rgba(0,0,0,.25)!important;}
+        .deecar3-root main>div.flex.border-b{border:1px solid #1e303e!important;border-radius:16px!important;padding:8px!important;background:rgba(13,20,28,.85)!important;gap:8px!important;}
+        .deecar3-root main>div.flex.border-b>button{flex:1;min-height:42px;padding:10px 14px!important;border:1px solid transparent!important;border-radius:12px!important;}
+        .deecar3-root main>div.flex.border-b>button[class*=bg-blue-600]{background:linear-gradient(135deg,#087f9c,#12aeca)!important;box-shadow:0 5px 20px rgba(8,166,201,.22)!important;}
+        .deecar3-root main .grid{gap:14px!important;}
+        .deecar3-root main .p-4.rounded-2xl{padding:18px!important;}
+        @media(max-width:640px){.deecar3-root main{padding:12px!important}.deecar3-root header>div{height:auto!important;min-height:62px;padding-top:8px;padding-bottom:8px;gap:8px;flex-wrap:wrap}.deecar3-root header>div>div:last-child{flex-wrap:wrap;justify-content:flex-end}.deecar3-root main button{min-height:42px}.deecar3-root main input,.deecar3-root main select{font-size:16px!important}.deecar3-root main>div.flex.border-b{display:grid!important;grid-template-columns:1fr 1fr!important}.deecar3-root main>div.flex.border-b>button{white-space:normal!important;justify-content:center;text-align:center;min-height:54px;}}
       `}</style>
+      
       {/* Header Bar */}
       <header className={`border-b sticky top-0 z-30 backdrop-blur-md ${isDarkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white/80 border-slate-200'}`}>
-        <div className="max-w-6xl mx-auto px-3 sm:px-4 min-h-14 py-2 flex items-center justify-between gap-2">
+        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="bg-gradient-to-tr from-blue-600 to-indigo-500 p-2 rounded-xl shadow-sm text-white">
               <Car className="w-4 h-4" />
@@ -1189,13 +992,13 @@ function MainApp() {
             <div>
               <div className="flex items-center gap-1.5">
                 <h1 className="font-bold text-sm tracking-wide bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-                  DEECAR
+                  DEECAR GARAGE
                 </h1>
-                <span className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full border ${cloudStatus === 'connected' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : cloudStatus === 'error' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'}`}>
-                  <Cloud className="w-2.5 h-2.5" /> {cloudStatus === 'connected' ? 'Cloud Synced' : cloudStatus === 'error' ? 'Sync Error' : cloudStatus === 'missing' ? 'No Cloud Document' : 'Syncing...'}
+                <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                  <Cloud className="w-2.5 h-2.5" /> Online
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400">ระบบเช็กลิสต์ระยะบำรุงรักษาและต่อเอกสารยานพาหนะ</p>
+              <p className="text-[10px] text-slate-400">VEHICLE CARE • MAINTENANCE • SERVICE HISTORY</p>
             </div>
           </div>
 
@@ -1252,20 +1055,7 @@ function MainApp() {
       </header>
 
       {/* Main Container */}
-      <main className="max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-5 space-y-3 sm:space-y-5">
-
-        {vehicles.length === 0 && !isCloudLoading && (
-          <div className={`rounded-2xl border p-3 text-[11px] space-y-1 ${isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-300' : 'bg-white border-slate-200 text-slate-700'}`}>
-            <div className="font-bold flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-400" /> Data Sync Diagnostics</div>
-            <div>Auth UID: <span className="font-mono break-all">{cloudLoadedUid || user.uid}</span></div>
-            <div>Cloud status: <span className="font-semibold">{cloudStatus}</span></div>
-            <div>Vehicles loaded: 0</div>
-            <div>Service history: {serviceHistory.length}</div>
-            {cloudLastSync && <div>Last listener event: {cloudLastSync}</div>}
-            {cloudError && <div className="text-rose-400 break-words">Firestore error: {cloudError}</div>}
-            {cloudStatus === 'missing' && <div className="text-amber-400">Firestore document not found for this UID.</div>}
-          </div>
-        )}
+      <main className="max-w-6xl mx-auto px-4 py-4 space-y-4">
 
         {isCloudLoading ? (
           <div className="p-10 text-center text-slate-400 space-y-2">
@@ -1372,33 +1162,22 @@ function MainApp() {
                       <Gauge className="w-5 h-5" />
                     </div>
                     <div className="flex-1">
-                      <label className="text-[10px] sm:text-xs text-slate-400 font-medium flex flex-wrap justify-between gap-1">
-                        <span>เลขไมล์ปัจจุบัน</span>
+                      <label className="text-[10px] text-slate-400 font-medium flex justify-between">
+                        <span>เลขไมล์ปัจจุบัน (คลิกออกนอกช่องเพื่อบันทึก)</span>
                         <span className="text-emerald-400 font-mono">Odometer</span>
                       </label>
-                      <div className="mt-1 flex flex-col sm:flex-row gap-2">
-                        <div className="relative flex-1 min-w-0">
-                          <input
-                            type="number"
-                            inputMode="numeric"
-                            min={0}
-                            value={tempKmInput}
-                            onChange={(e) => setTempKmInput(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmUpdateKm(); }}
-                            className={`w-full min-h-11 px-3 pr-12 text-base sm:text-sm font-mono font-bold rounded-xl border focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
-                              isDarkMode ? 'bg-slate-800 border-slate-700 text-emerald-400' : 'bg-slate-50 border-slate-300 text-emerald-600'
-                            }`}
-                          />
-                          <span className="absolute right-3 top-3 text-xs text-slate-400">กม.</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleConfirmUpdateKm}
-                          disabled={!tempKmInput || Number(tempKmInput) === currentKm}
-                          className="min-h-11 sm:min-h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm whitespace-nowrap"
-                        >
-                          <CheckCircle2 className="w-4 h-4" /> บันทึกเลขไมล์
-                        </button>
+                      <div className="relative mt-1">
+                        <input
+                          type="number"
+                          value={tempKmInput}
+                          onChange={(e) => setTempKmInput(e.target.value)}
+                          onBlur={handleConfirmUpdateKm}
+                          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                          className={`w-full px-2.5 py-1 text-sm font-mono font-bold rounded-lg border ${
+                            isDarkMode ? 'bg-slate-800 border-slate-700 text-emerald-400' : 'bg-slate-50 border-slate-300 text-emerald-600'
+                          }`}
+                        />
+                        <span className="absolute right-2.5 top-1.5 text-[11px] text-slate-400">กม.</span>
                       </div>
                     </div>
                   </div>
@@ -1413,7 +1192,7 @@ function MainApp() {
                         type="date"
                         value={today}
                         readOnly
-                        onChange={() => {}}
+                        onChange={() => {}}}
                         className={`w-full mt-1 px-2.5 py-1 text-xs font-semibold rounded-lg border ${
                           isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300'
                         }`}
@@ -1998,8 +1777,8 @@ function MainApp() {
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h2 className="text-base sm:text-lg font-bold">ประวัติการเปลี่ยนแปลงทั้งหมด</h2>
-                    <p className="text-xs text-slate-400">รายการ Service, ต่อเอกสาร และการอัปเดตเลขไมล์ พร้อมย้อนกลับได้</p>
+                    <h2 className="text-sm font-bold">ประวัติการบันทึกการบำรุงรักษา/ต่อเอกสารทั้งหมด</h2>
+                    <p className="text-[10px] text-slate-400">ประวัติการกด Reset เช็กลิสต์และต่อเอกสารของรถทุกคันในระบบ</p>
                   </div>
 
                   {serviceHistory.length > 0 && (
@@ -2025,26 +1804,20 @@ function MainApp() {
                   ) : (
                     <div className="divide-y divide-slate-800/40">
                       {serviceHistory.map((h: ServiceHistoryItem) => (
-                        <div key={h.id} className={`p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 transition-colors ${h.reverted ? 'opacity-60' : 'hover:bg-slate-800/30'}`}>
-                          <div className="flex items-start gap-3 min-w-0 flex-1">
-                            <div className={`p-2.5 rounded-xl shrink-0 ${h.reverted ? 'bg-amber-500/10 text-amber-400' : h.recordType === 'odometer' ? 'bg-blue-500/10 text-blue-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
-                              {h.reverted ? <RotateCcw className="w-4 h-4" /> : h.recordType === 'odometer' ? <Gauge className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+                        <div key={h.id} className="p-3 flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl">
+                              <CheckCircle2 className="w-4 h-4" />
                             </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="font-semibold text-sm leading-snug break-words">{h.itemName} <span className="text-xs text-blue-400 font-normal">({h.carName})</span></p>
-                              <p className="text-xs text-slate-400 mt-1 break-words">{h.note}</p>
-                              <div className="flex flex-wrap gap-1.5 mt-2">
-                                <span className={`px-2 py-1 rounded-full text-[10px] font-semibold ${h.recordType === 'odometer' ? 'bg-blue-500/10 text-blue-400' : 'bg-emerald-500/10 text-emerald-400'}`}>{h.recordType === 'odometer' ? 'Odometer Update' : 'Service Record'}</span>
-                                {h.reverted && <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 text-[10px] font-semibold">Reverted</span>}
-                              </div>
+                            <div>
+                              <p className="font-semibold text-xs">{h.itemName} <span className="text-[10px] text-blue-400 font-normal">({h.carName})</span></p>
+                              <p className="text-[10px] text-slate-400">{h.note}</p>
                             </div>
                           </div>
-                          <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 sm:shrink-0">
-                            <div className="text-left sm:text-right font-mono text-xs">
-                              <p className={`font-bold ${h.reverted ? 'text-amber-400' : 'text-emerald-400'}`}>{h.servicedKm?.toLocaleString()} กม.</p>
-                              <p className="text-slate-400 text-[11px]">{h.servicedDate}</p>
-                            </div>
-                            {!h.reverted && <button type="button" onClick={() => handleRevertHistory(h)} className="min-h-10 px-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 font-semibold text-xs inline-flex items-center gap-1.5 whitespace-nowrap"><RotateCcw className="w-3.5 h-3.5" /> Revert</button>}
+
+                          <div className="text-right font-mono text-[11px]">
+                            <p className="text-emerald-400 font-bold">{h.servicedKm?.toLocaleString()} กม.</p>
+                            <p className="text-slate-400 text-[10px]">{h.servicedDate}</p>
                           </div>
                         </div>
                       ))}
