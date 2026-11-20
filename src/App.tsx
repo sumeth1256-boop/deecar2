@@ -334,6 +334,10 @@ function MainApp() {
   const [serviceHistory, setServiceHistory] = useState<ServiceHistoryItem[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
   const [isCloudLoading, setIsCloudLoading] = useState<boolean>(true);
+  const [cloudStatus, setCloudStatus] = useState<'loading' | 'connected' | 'error' | 'missing'>('loading');
+  const [cloudError, setCloudError] = useState<string>('');
+  const [cloudLoadedUid, setCloudLoadedUid] = useState<string>('');
+  const [cloudLastSync, setCloudLastSync] = useState<string>('');
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   const [activeTab, setActiveTab] = useState('garage');
@@ -374,11 +378,18 @@ function MainApp() {
     if (!user) {
       setVehicles([]);
       setServiceHistory([]);
+      setCloudStatus('loading');
+      setCloudError('');
+      setCloudLoadedUid('');
+      setCloudLastSync('');
       setIsCloudLoading(false);
       return;
     }
 
     setIsCloudLoading(true);
+    setCloudStatus('loading');
+    setCloudError('');
+    setCloudLoadedUid(user.uid);
     const docRef = doc(db, 'deecar_users', user.uid);
     const storageKey = getLocalStorageKey(user.uid);
     const loadLocalBackup = () => {
@@ -398,6 +409,9 @@ function MainApp() {
     };
 
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      setCloudStatus(docSnap.exists() ? 'connected' : 'missing');
+      setCloudError('');
+      setCloudLastSync(new Date().toLocaleString('th-TH'));
       if (docSnap.exists()) {
         const data = docSnap.data();
         const cloudVehicles = Array.isArray(data.vehicles) ? data.vehicles : [];
@@ -443,6 +457,9 @@ function MainApp() {
       setIsCloudLoading(false);
     }, (error) => {
       console.error('Firestore Listen Error:', error);
+      setCloudStatus('error');
+      setCloudError(`${error.code || 'unknown'}: ${error.message}`);
+      setCloudLastSync(new Date().toLocaleString('th-TH'));
       const local = loadLocalBackup();
       if (local) {
         setVehicles(local.vehicles);
@@ -1081,8 +1098,8 @@ function MainApp() {
                 <h1 className="font-bold text-sm tracking-wide bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
                   DEECAR Tracker
                 </h1>
-                <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                  <Cloud className="w-2.5 h-2.5" /> Online
+                <span className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full border ${cloudStatus === 'connected' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : cloudStatus === 'error' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'}`}>
+                  <Cloud className="w-2.5 h-2.5" /> {cloudStatus === 'connected' ? 'Cloud Synced' : cloudStatus === 'error' ? 'Sync Error' : cloudStatus === 'missing' ? 'No Cloud Document' : 'Syncing...'}
                 </span>
               </div>
               <p className="text-[10px] text-slate-400">ระบบเช็กลิสต์ระยะบำรุงรักษาและต่อเอกสารยานพาหนะ</p>
@@ -1143,6 +1160,19 @@ function MainApp() {
 
       {/* Main Container */}
       <main className="max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-5 space-y-3 sm:space-y-5">
+
+        {vehicles.length === 0 && !isCloudLoading && (
+          <div className={`rounded-2xl border p-3 text-[11px] space-y-1 ${isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-300' : 'bg-white border-slate-200 text-slate-700'}`}>
+            <div className="font-bold flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-400" /> Data Sync Diagnostics</div>
+            <div>Auth UID: <span className="font-mono break-all">{cloudLoadedUid || user.uid}</span></div>
+            <div>Cloud status: <span className="font-semibold">{cloudStatus}</span></div>
+            <div>Vehicles loaded: 0</div>
+            <div>Service history: {serviceHistory.length}</div>
+            {cloudLastSync && <div>Last listener event: {cloudLastSync}</div>}
+            {cloudError && <div className="text-rose-400 break-words">Firestore error: {cloudError}</div>}
+            {cloudStatus === 'missing' && <div className="text-amber-400">Firestore document not found for this UID.</div>}
+          </div>
+        )}
 
         {isCloudLoading ? (
           <div className="p-10 text-center text-slate-400 space-y-2">
